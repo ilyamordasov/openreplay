@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +35,17 @@ func (s *fakeObjectStorage) Exists(key string) bool {
 	return ok
 }
 
+func (s *fakeObjectStorage) ListKeys(prefix string) ([]string, error) {
+	keys := make([]string, 0)
+	for key := range s.objects {
+		if strings.HasPrefix(key, prefix) {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	return keys, nil
+}
+
 func (s *fakeObjectStorage) GetCreationTime(string) *time.Time { return nil }
 func (s *fakeObjectStorage) GetPreSignedUploadUrl(string) (string, error) {
 	return "", nil
@@ -49,9 +62,11 @@ func TestWriteSessionArchive(t *testing.T) {
 	sessionID := uint64(4020541843067130369)
 	sid := strconv.FormatUint(sessionID, 10)
 	store := &fakeObjectStorage{objects: map[string][]byte{
-		sid + "/dom.mobs":     []byte("dom-start"),
-		sid + "/dom.mobe":     []byte("dom-end"),
-		sid + "/devtools.mob": []byte("devtools"),
+		sid + "/dom.mobs":               []byte("dom-start"),
+		sid + "/dom.mobe":               []byte("dom-end"),
+		sid + "/devtools.mob":           []byte("devtools"),
+		sid + "/mobile/segment-0001.mob": []byte("mobile-segment"),
+		"999/mobile/other.mob":           []byte("other-session"),
 	}}
 	files := &filesImpl{objStore: store}
 
@@ -80,13 +95,17 @@ func TestWriteSessionArchive(t *testing.T) {
 	}
 
 	for name, expected := range map[string]string{
-		"raw/dom.mobs":     "dom-start",
-		"raw/dom.mobe":     "dom-end",
-		"raw/devtools.mob": "devtools",
+		"raw/dom.mobs":                "dom-start",
+		"raw/dom.mobe":                "dom-end",
+		"raw/devtools.mob":            "devtools",
+		"raw/mobile/segment-0001.mob": "mobile-segment",
 	} {
 		if got := string(archiveFiles[name]); got != expected {
 			t.Fatalf("%s = %q, want %q", name, got, expected)
 		}
+	}
+	if _, ok := archiveFiles["raw/mobile/other.mob"]; ok {
+		t.Fatalf("archive contains an object from another session")
 	}
 
 	var manifest sessionArchiveManifest
@@ -102,7 +121,7 @@ func TestWriteSessionArchive(t *testing.T) {
 	if manifest.SessionID != sid {
 		t.Fatalf("manifest sessionId = %q, want %q", manifest.SessionID, sid)
 	}
-	if len(manifest.Files) != 3 {
+	if len(manifest.Files) != 4 {
 		t.Fatalf("manifest files = %v", manifest.Files)
 	}
 }

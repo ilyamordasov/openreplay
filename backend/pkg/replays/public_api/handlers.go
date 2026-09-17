@@ -68,7 +68,7 @@ func (h *handlersImpl) downloadSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="openreplay-session-%d.zip"`, sessID))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"openreplay-session-%d.zip\"", sessID))
 	w.Header().Set("Cache-Control", "private, no-store")
 
 	if err := h.files.WriteSessionArchive(sessID, w); err != nil {

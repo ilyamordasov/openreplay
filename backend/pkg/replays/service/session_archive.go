@@ -33,18 +33,20 @@ func (f *filesImpl) WriteSessionArchive(sessID uint64, w io.Writer) error {
 		{key: sid + "/replay.tar.zst", name: "raw/replay.tar.zst"},
 	}
 
-	if recIDs, err := f.canvases.Get(sessID); err == nil {
-		for _, recID := range recIDs {
-			candidates = append(candidates,
-				sessionArchiveObject{
-					key:  fmt.Sprintf("%d/%s.webp.frames.zst", sessID, recID),
-					name: fmt.Sprintf("raw/canvas/%s.webp.frames.zst", recID),
-				},
-				sessionArchiveObject{
-					key:  fmt.Sprintf("%d/%s.tar.zst", sessID, recID),
-					name: fmt.Sprintf("raw/canvas/%s.tar.zst", recID),
-				},
-			)
+	if f.canvases != nil {
+		if recIDs, err := f.canvases.Get(sessID); err == nil {
+			for _, recID := range recIDs {
+				candidates = append(candidates,
+					sessionArchiveObject{
+						key:  fmt.Sprintf("%d/%s.webp.frames.zst", sessID, recID),
+						name: fmt.Sprintf("raw/canvas/%s.webp.frames.zst", recID),
+					},
+					sessionArchiveObject{
+						key:  fmt.Sprintf("%d/%s.tar.zst", sessID, recID),
+						name: fmt.Sprintf("raw/canvas/%s.tar.zst", recID),
+					},
+				)
+			}
 		}
 	}
 

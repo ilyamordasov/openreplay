@@ -62,11 +62,12 @@ func TestWriteSessionArchive(t *testing.T) {
 	sessionID := uint64(4020541843067130369)
 	sid := strconv.FormatUint(sessionID, 10)
 	store := &fakeObjectStorage{objects: map[string][]byte{
-		sid + "/dom.mobs":               []byte("dom-start"),
-		sid + "/dom.mobe":               []byte("dom-end"),
-		sid + "/devtools.mob":           []byte("devtools"),
-		sid + "/mobile/segment-0001.mob": []byte("mobile-segment"),
-		"999/mobile/other.mob":           []byte("other-session"),
+		sid + "/dom.mobs":                  []byte("dom-start"),
+		sid + "/dom.mobe":                  []byte("dom-end"),
+		sid + "/devtools.mob":              []byte("devtools"),
+		sid + "/mobile/segment-0001.mob":    []byte("mobile-segment"),
+		sid + "/nested/../../escape.secret": []byte("must-not-export"),
+		"999/mobile/other.mob":              []byte("other-session"),
 	}}
 	files := &filesImpl{objStore: store}
 
@@ -106,6 +107,11 @@ func TestWriteSessionArchive(t *testing.T) {
 	}
 	if _, ok := archiveFiles["raw/mobile/other.mob"]; ok {
 		t.Fatalf("archive contains an object from another session")
+	}
+	for name := range archiveFiles {
+		if strings.Contains(name, "..") || name == "escape.secret" || strings.HasSuffix(name, "/escape.secret") {
+			t.Fatalf("archive contains unsafe path %q", name)
+		}
 	}
 
 	var manifest sessionArchiveManifest

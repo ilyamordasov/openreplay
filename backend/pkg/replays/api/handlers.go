@@ -21,6 +21,17 @@ type handlersImpl struct {
 	files     service.Files
 }
 
+type archiveWriteTracker struct {
+	writer  http.ResponseWriter
+	written int64
+}
+
+func (w *archiveWriteTracker) Write(p []byte) (int, error) {
+	n, err := w.writer.Write(p)
+	w.written += int64(n)
+	return n, err
+}
+
 func (h *handlersImpl) GetAll() []*api.Description {
 	return []*api.Description{
 		{"/{project}/sessions/{session}/first-mob", "GET", h.getFirstMob, []string{"SESSION_REPLAY", "SERVICE_SESSION_REPLAY"}, "get_first_mob_file"},
@@ -116,15 +127,20 @@ func (h *handlersImpl) downloadSession(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"openreplay-session-%d.zip\"", sessID))
 	w.Header().Set("Cache-Control", "private, no-store")
 
-	if err := h.files.WriteSessionArchive(sessID, w); err != nil {
-		if errors.Is(err, service.ErrSessionArchiveNotFound) {
+	tracker := &archiveWriteTracker{writer: w}
+	if err := h.files.WriteSessionArchive(sessID, tracker); err != nil {
+		if tracker.written == 0 {
 			w.Header().Del("Content-Disposition")
 			w.Header().Del("Cache-Control")
 			w.Header().Set("Content-Type", "application/json")
-			h.responser.ResponseWithError(h.log, r.Context(), w, http.StatusNotFound, err, startTime, r.URL.Path, bodySize)
+			status := http.StatusInternalServerError
+			if errors.Is(err, service.ErrSessionArchiveNotFound) {
+				status = http.StatusNotFound
+			}
+			h.responser.ResponseWithError(h.log, r.Context(), w, status, err, startTime, r.URL.Path, bodySize)
 			return
 		}
-		h.log.Error(r.Context(), "failed to stream session archive, session: %d, err: %v", sessID, err)
+		h.log.Error(r.Context(), "failed to stream session archive after %d bytes, session: %d, err: %v", tracker.written, sessID, err)
 	}
 }
 

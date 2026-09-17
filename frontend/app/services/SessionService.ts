@@ -55,6 +55,23 @@ export default class SettingsService {
       .catch(console.error);
   }
 
+  async downloadSession(sessionId: string): Promise<void> {
+    const response = await this.client.get(`/sessions/${sessionId}/download`);
+    const blob = await response.blob();
+    const contentDisposition = response.headers.get('Content-Disposition');
+    const filenameMatch = contentDisposition?.match(/filename="?([^";]+)"?/i);
+    const filename =
+      filenameMatch?.[1] || `openreplay-session-${sessionId}.zip`;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   getRecommendedSessions(sort?: any): Promise<{
     sessions: ISession[];
     total: number;
@@ -217,7 +234,6 @@ export default class SettingsService {
         sortBy: 'startTs',
         sortOrder: 'desc',
       });
-      // .get('/PROJECT_ID/shorts-recommendations');
       const j = await r.json();
       return j || {};
     } catch (reason) {

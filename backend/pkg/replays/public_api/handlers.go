@@ -19,6 +19,17 @@ type handlersImpl struct {
 	files    service.Files
 }
 
+type archiveWriteTracker struct {
+	writer  http.ResponseWriter
+	written int64
+}
+
+func (w *archiveWriteTracker) Write(p []byte) (int, error) {
+	n, err := w.writer.Write(p)
+	w.written += int64(n)
+	return n, err
+}
+
 func NewHandlers(log logger.Logger, projects projects.Projects, sessions session.Service, files service.Files) (api.Handlers, error) {
 	return &handlersImpl{
 		log:      log,
@@ -71,14 +82,21 @@ func (h *handlersImpl) downloadSession(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"openreplay-session-%d.zip\"", sessID))
 	w.Header().Set("Cache-Control", "private, no-store")
 
-	if err := h.files.WriteSessionArchive(sessID, w); err != nil {
-		if errors.Is(err, service.ErrSessionArchiveNotFound) {
+	tracker := &archiveWriteTracker{writer: w}
+	if err := h.files.WriteSessionArchive(sessID, tracker); err != nil {
+		if tracker.written == 0 {
 			w.Header().Del("Content-Disposition")
 			w.Header().Del("Cache-Control")
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			http.Error(w, "session archive not found", http.StatusNotFound)
+			status := http.StatusInternalServerError
+			message := "failed to build session archive"
+			if errors.Is(err, service.ErrSessionArchiveNotFound) {
+				status = http.StatusNotFound
+				message = "session archive not found"
+			}
+			http.Error(w, message, status)
 			return
 		}
-		h.log.Error(r.Context(), "failed to stream public session archive, session: %d, err: %v", sessID, err)
+		h.log.Error(r.Context(), "failed to stream public session archive after %d bytes, session: %d, err: %v", tracker.written, sessID, err)
 	}
 }

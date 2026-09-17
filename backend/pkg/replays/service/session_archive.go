@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
+	"sort"
 	"strconv"
+	"strings"
 )
 
 var ErrSessionArchiveNotFound = errors.New("session archive files not found")
@@ -16,6 +19,10 @@ type sessionArchiveObject struct {
 	name string
 }
 
+type sessionObjectLister interface {
+	ListKeys(prefix string) ([]string, error)
+}
+
 type sessionArchiveManifest struct {
 	Format    string   `json:"format"`
 	Version   int      `json:"version"`
@@ -23,8 +30,37 @@ type sessionArchiveManifest struct {
 	Files     []string `json:"files"`
 }
 
-func (f *filesImpl) WriteSessionArchive(sessID uint64, w io.Writer) error {
-	sid := strconv.FormatUint(sessID, 10)
+func (f *filesImpl) discoverSessionArchiveObjects(sessID uint64, sid string) ([]sessionArchiveObject, error) {
+	prefix := sid + "/"
+	if lister, ok := f.objStore.(sessionObjectLister); ok {
+		keys, err := lister.ListKeys(prefix)
+		if err != nil {
+			return nil, fmt.Errorf("list session objects: %w", err)
+		}
+		files := make([]sessionArchiveObject, 0, len(keys))
+		for _, key := range keys {
+			if !strings.HasPrefix(key, prefix) {
+				continue
+			}
+			rel := strings.TrimPrefix(key, prefix)
+			if rel == "" || strings.HasSuffix(rel, "/") || strings.Contains(rel, "\\") {
+				continue
+			}
+			clean := path.Clean(rel)
+			if clean == "." || clean == ".." || clean != rel || path.IsAbs(clean) || strings.HasPrefix(clean, "../") {
+				continue
+			}
+			files = append(files, sessionArchiveObject{
+				key:  key,
+				name: "raw/" + clean,
+			})
+		}
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].name < files[j].name
+		})
+		return files, nil
+	}
+
 	candidates := []sessionArchiveObject{
 		{key: sid + "/dom.mobs", name: "raw/dom.mobs"},
 		{key: sid + "/dom.mobe", name: "raw/dom.mobe"},
@@ -55,6 +91,18 @@ func (f *filesImpl) WriteSessionArchive(sessID uint64, w io.Writer) error {
 		if f.objStore.Exists(candidate.key) {
 			files = append(files, candidate)
 		}
+	}
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].name < files[j].name
+	})
+	return files, nil
+}
+
+func (f *filesImpl) WriteSessionArchive(sessID uint64, w io.Writer) error {
+	sid := strconv.FormatUint(sessID, 10)
+	files, err := f.discoverSessionArchiveObjects(sessID, sid)
+	if err != nil {
+		return err
 	}
 	if len(files) == 0 {
 		return ErrSessionArchiveNotFound

@@ -159,6 +159,25 @@ func (s *storageImpl) Exists(key string) bool {
 	return false
 }
 
+func (s *storageImpl) ListKeys(prefix string) ([]string, error) {
+	keys := make([]string, 0)
+	err := s.svc.ListObjectsV2Pages(&s3.ListObjectsV2Input{
+		Bucket: s.bucket,
+		Prefix: aws.String(prefix),
+	}, func(page *s3.ListObjectsV2Output, _ bool) bool {
+		for _, obj := range page.Contents {
+			if obj.Key != nil {
+				keys = append(keys, *obj.Key)
+			}
+		}
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
 func (s *storageImpl) GetCreationTime(key string) *time.Time {
 	ans, err := s.svc.HeadObject(&s3.HeadObjectInput{
 		Bucket: s.bucket,

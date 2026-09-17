@@ -3,6 +3,7 @@ import cn from 'classnames';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'react-toastify';
 import { useNavigate } from 'App/routing';
 
 import { PlayerContext } from 'App/components/Session/playerContext';
@@ -13,8 +14,9 @@ import {
   sessions as sessionsRoute,
   withSiteId,
 } from 'App/routes';
+import { sessionService } from 'App/services';
 import Tabs from 'Components/Session/Tabs';
-import { BackLink, Link } from 'UI';
+import { BackLink, Button, Link } from 'UI';
 
 import SessionMetaList from 'Shared/SessionItem/SessionMetaList';
 
@@ -26,6 +28,7 @@ const SESSIONS_ROUTE = sessionsRoute();
 function PlayerBlockHeader(props: any) {
   const { t } = useTranslation();
   const [hideBack, setHideBack] = React.useState(false);
+  const [downloading, setDownloading] = React.useState(false);
   const { uiPlayerStore } = useStore();
   const { player, store } = React.useContext(PlayerContext);
   const { customFieldStore, projectsStore, sessionStore } = useStore();
@@ -76,6 +79,20 @@ function PlayerBlockHeader(props: any) {
       return { label: key, value };
     });
 
+  const downloadSession = async () => {
+    if (!sessionId || downloading) return;
+    setDownloading(true);
+    try {
+      await sessionService.downloadSession(String(sessionId));
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to download session'),
+      );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const TABS = Object.keys(props.tabs).map((tab) => ({
     text: props.tabs[tab],
     key: tab,
@@ -119,6 +136,18 @@ function PlayerBlockHeader(props: any) {
 
           {_metaList.length > 0 && (
             <SessionMetaList horizontal metaList={_metaList} maxLength={2} />
+          )}
+          {!live && !hideBack && (
+            <div className="px-2">
+              <Button
+                variant="text"
+                loading={downloading}
+                disabled={downloading}
+                onClick={() => void downloadSession()}
+              >
+                {t('Download Session')}
+              </Button>
+            </div>
           )}
         </div>
         {uiPlayerStore.showSearchEventsSwitchButton ? (

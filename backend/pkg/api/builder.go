@@ -38,6 +38,7 @@ import (
 	"openreplay/backend/pkg/objectstorage"
 	"openreplay/backend/pkg/projects"
 	replayAPI "openreplay/backend/pkg/replays/api"
+	replayPublicAPI "openreplay/backend/pkg/replays/public_api"
 	"openreplay/backend/pkg/replays/service"
 	"openreplay/backend/pkg/server/api"
 	"openreplay/backend/pkg/session"
@@ -53,6 +54,7 @@ type serviceBuilder struct {
 	favoriteAPI        api.Handlers
 	noteAPI            api.Handlers
 	replayAPI          api.Handlers
+	replayPublicAPI    api.Handlers
 	apiKeyAPI          api.Handlers
 	conditionsAPI      api.Handlers
 	cardsAPI           api.Handlers
@@ -66,7 +68,7 @@ type serviceBuilder struct {
 }
 
 func (b *serviceBuilder) Handlers() []api.Handlers {
-	return []api.Handlers{b.sessionAPI, b.eventAPI, b.analyticsEventsAPI, b.favoriteAPI, b.noteAPI, b.replayAPI, b.apiKeyAPI, b.conditionsAPI,
+	return []api.Handlers{b.sessionAPI, b.eventAPI, b.analyticsEventsAPI, b.favoriteAPI, b.noteAPI, b.replayAPI, b.replayPublicAPI, b.apiKeyAPI, b.conditionsAPI,
 		b.chartsAPI, b.dashboardsAPI, b.cardsAPI, b.searchAPI, b.savedSearchesAPI, b.usersAPI, b.lexiconAPI, b.tagsAdminAPI}
 }
 
@@ -157,6 +159,10 @@ func NewServiceBuilder(log logger.Logger, cfg *config.Config, webMetrics web.Web
 	if err != nil {
 		return nil, err
 	}
+	replayPublicHandlers, err := replayPublicAPI.NewHandlers(log, projects, sessionService, files)
+	if err != nil {
+		return nil, err
+	}
 
 	apiKeyHandlers, err := api_key.NewHandlers(log, requestHandler, projects, usersService, analyticsEventsService, jobsService, assistProxy, cfg)
 	if err != nil {
@@ -226,6 +232,7 @@ func NewServiceBuilder(log logger.Logger, cfg *config.Config, webMetrics web.Web
 		favoriteAPI:        favHandlers,
 		noteAPI:            noteHandlers,
 		replayAPI:          replayHandlers,
+		replayPublicAPI:    replayPublicHandlers,
 		apiKeyAPI:          apiKeyHandlers,
 		conditionsAPI:      conditionsHandlers,
 		cardsAPI:           cardsHandlers,

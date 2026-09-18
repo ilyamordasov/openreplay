@@ -24,6 +24,7 @@ type Files interface {
 	GetUnprocessedMob(sessID uint64) (string, error)
 	GetUnprocessedMobE(sessID uint64) (string, error)
 	GetUnprocessedDevtools(sessID uint64) (string, error)
+	WriteSessionArchive(sessID uint64, w io.Writer) error
 }
 
 const (
@@ -60,13 +61,13 @@ func New(log logger.Logger, cfg *config.Config, objStore objectstorage.ObjectSto
 func unprocessedPathAccessible(log logger.Logger, path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
-		log.Error(context.Background(), err.Error())
+		log.Error(context.Background(), "%s", err.Error())
 		return false
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
-		log.Error(context.Background(), err.Error())
+		log.Error(context.Background(), "%s", err.Error())
 		return false
 	}
 	if !info.IsDir() {
@@ -75,7 +76,7 @@ func unprocessedPathAccessible(log logger.Logger, path string) bool {
 	}
 	_, err = f.Readdir(1)
 	if err != nil && !errors.Is(err, io.EOF) {
-		log.Error(context.Background(), err.Error())
+		log.Error(context.Background(), "%s", err.Error())
 		return false
 	}
 	return true

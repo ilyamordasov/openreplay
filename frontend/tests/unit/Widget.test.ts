@@ -604,7 +604,7 @@ describe('Widget breakdown management', () => {
 
   it('moveBreakdown reorders correctly', () => {
     const w = new Widget();
-    w.breakdowns = ['a', 'b', 'c'];
+    w.breakdowns = [{ name: 'a' }, { name: 'b' }, { name: 'c' }];
     w.moveBreakdown(0, 2);
     expect(w.breakdowns).toEqual([{ name: 'b' }, { name: 'c' }, { name: 'a' }]);
   });

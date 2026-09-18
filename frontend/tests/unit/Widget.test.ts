@@ -533,14 +533,14 @@ describe('Widget.fromJson / toJson', () => {
 
     expect(w.metricId).toBe('abc-123');
     expect(w.name).toBe('My Widget');
-    expect(w.breakdowns).toEqual(['userCountry', 'userCity']);
+    expect(w.breakdowns).toEqual([{ name: 'userCountry' }, { name: 'userCity' }]);
     expect(w.sortBy).toBe('total');
     expect(w.sortOrder).toBe('asc');
 
     const json = w.toJson();
     expect(json.metricId).toBe('abc-123');
     expect(json.name).toBe('My Widget');
-    expect(json.breakdowns).toEqual(['userCountry', 'userCity']);
+    expect(json.breakdowns).toEqual([{ name: 'userCountry' }, { name: 'userCity' }]);
     expect(json.sortBy).toBe('total');
     expect(json.sortOrder).toBe('asc');
   });
@@ -584,29 +584,29 @@ describe('Widget breakdown management', () => {
   it('addBreakdown appends and marks changed', () => {
     const w = new Widget();
     w.addBreakdown({ name: 'userCountry' });
-    expect(w.breakdowns).toEqual(['userCountry']);
+    expect(w.breakdowns).toEqual([{ name: 'userCountry' }]);
     expect(w.hasChanged).toBe(true);
   });
 
   it('updateBreakdown replaces at index', () => {
     const w = new Widget();
-    w.breakdowns = ['userCountry', 'userCity'];
+    w.breakdowns = [{ name: 'userCountry' }, { name: 'userCity' }];
     w.updateBreakdown(1, { name: 'userBrowser' });
-    expect(w.breakdowns).toEqual(['userCountry', 'userBrowser']);
+    expect(w.breakdowns).toEqual([{ name: 'userCountry' }, { name: 'userBrowser' }]);
   });
 
   it('removeBreakdown removes at index', () => {
     const w = new Widget();
-    w.breakdowns = ['a', 'b', 'c'];
+    w.breakdowns = [{ name: 'a' }, { name: 'b' }, { name: 'c' }];
     w.removeBreakdown(1);
-    expect(w.breakdowns).toEqual(['a', 'c']);
+    expect(w.breakdowns).toEqual([{ name: 'a' }, { name: 'c' }]);
   });
 
   it('moveBreakdown reorders correctly', () => {
     const w = new Widget();
-    w.breakdowns = ['a', 'b', 'c'];
+    w.breakdowns = [{ name: 'a' }, { name: 'b' }, { name: 'c' }];
     w.moveBreakdown(0, 2);
-    expect(w.breakdowns).toEqual(['b', 'c', 'a']);
+    expect(w.breakdowns).toEqual([{ name: 'b' }, { name: 'c' }, { name: 'a' }]);
   });
 });
 

@@ -123,24 +123,24 @@ func (f *filesImpl) WriteSessionArchive(sessID uint64, w io.Writer) error {
 	}
 	manifestBytes = append(manifestBytes, '\n')
 
+	// Close finalizes the ZIP, so call it only after every object succeeds.
+	// On error, leave the archive incomplete and let the HTTP handler fail
+	// before the first write or abort an already-started response.
 	archive := zip.NewWriter(w)
 	manifestWriter, err := archive.CreateHeader(&zip.FileHeader{
 		Name:   "manifest.json",
 		Method: zip.Store,
 	})
 	if err != nil {
-		_ = archive.Close()
 		return fmt.Errorf("create session archive manifest: %w", err)
 	}
 	if _, err := manifestWriter.Write(manifestBytes); err != nil {
-		_ = archive.Close()
 		return fmt.Errorf("write session archive manifest: %w", err)
 	}
 
 	for _, file := range files {
 		reader, err := f.objStore.Get(file.key)
 		if err != nil {
-			_ = archive.Close()
 			return fmt.Errorf("read session object %s: %w", file.key, err)
 		}
 
@@ -150,18 +150,15 @@ func (f *filesImpl) WriteSessionArchive(sessID uint64, w io.Writer) error {
 		})
 		if err != nil {
 			_ = reader.Close()
-			_ = archive.Close()
 			return fmt.Errorf("create archive entry %s: %w", file.name, err)
 		}
 
 		_, copyErr := io.Copy(entry, reader)
 		closeErr := reader.Close()
 		if copyErr != nil {
-			_ = archive.Close()
 			return fmt.Errorf("write archive entry %s: %w", file.name, copyErr)
 		}
 		if closeErr != nil {
-			_ = archive.Close()
 			return fmt.Errorf("close session object %s: %w", file.key, closeErr)
 		}
 	}

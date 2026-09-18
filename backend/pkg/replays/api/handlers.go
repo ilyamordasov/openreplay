@@ -24,9 +24,12 @@ type handlersImpl struct {
 type archiveWriteTracker struct {
 	writer  http.ResponseWriter
 	written int64
+	started bool
 }
 
 func (w *archiveWriteTracker) Write(p []byte) (int, error) {
+	// Even a failed write can commit HTTP headers.
+	w.started = true
 	n, err := w.writer.Write(p)
 	w.written += int64(n)
 	return n, err
@@ -102,13 +105,13 @@ func (h *handlersImpl) downloadSession(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	bodySize := 0
 
-	projID, err := api.GetProject(r)
-	if err != nil {
+	projID, err := api.GetPathParam(r, "project", api.ParseUint32)
+	if err != nil || projID == 0 {
 		h.responser.ResponseWithError(h.log, r.Context(), w, http.StatusBadRequest, errors.New("wrong project id"), startTime, r.URL.Path, bodySize)
 		return
 	}
-	sessID, err := api.GetSessionID(r)
-	if err != nil {
+	sessID, err := api.GetPathParam(r, "session", api.ParseUint64)
+	if err != nil || sessID == 0 {
 		h.responser.ResponseWithError(h.log, r.Context(), w, http.StatusBadRequest, errors.New("wrong session id"), startTime, r.URL.Path, bodySize)
 		return
 	}
@@ -129,7 +132,7 @@ func (h *handlersImpl) downloadSession(w http.ResponseWriter, r *http.Request) {
 
 	tracker := &archiveWriteTracker{writer: w}
 	if err := h.files.WriteSessionArchive(sessID, tracker); err != nil {
-		if tracker.written == 0 {
+		if !tracker.started {
 			w.Header().Del("Content-Disposition")
 			w.Header().Del("Cache-Control")
 			w.Header().Set("Content-Type", "application/json")
@@ -141,6 +144,7 @@ func (h *handlersImpl) downloadSession(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.Error(r.Context(), "failed to stream session archive after %d bytes, session: %d, err: %v", tracker.written, sessID, err)
+		panic(http.ErrAbortHandler)
 	}
 }
 

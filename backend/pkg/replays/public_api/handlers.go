@@ -22,9 +22,12 @@ type handlersImpl struct {
 type archiveWriteTracker struct {
 	writer  http.ResponseWriter
 	written int64
+	started bool
 }
 
 func (w *archiveWriteTracker) Write(p []byte) (int, error) {
+	// Even a failed write can commit HTTP headers.
+	w.started = true
 	n, err := w.writer.Write(p)
 	w.written += int64(n)
 	return n, err
@@ -84,7 +87,7 @@ func (h *handlersImpl) downloadSession(w http.ResponseWriter, r *http.Request) {
 
 	tracker := &archiveWriteTracker{writer: w}
 	if err := h.files.WriteSessionArchive(sessID, tracker); err != nil {
-		if tracker.written == 0 {
+		if !tracker.started {
 			w.Header().Del("Content-Disposition")
 			w.Header().Del("Cache-Control")
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -98,5 +101,6 @@ func (h *handlersImpl) downloadSession(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.Error(r.Context(), "failed to stream public session archive after %d bytes, session: %d, err: %v", tracker.written, sessID, err)
+		panic(http.ErrAbortHandler)
 	}
 }

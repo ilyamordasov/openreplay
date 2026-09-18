@@ -72,7 +72,7 @@ jobs:
 
           p = Path("frontend/.env.sample")
           text = p.read_text()
-          text = re.sub(r"^COMMIT_HASH\\s*=.*\\n?", "", text, flags=re.M)
+          text = re.sub(r"^COMMIT_HASH\s*=.*\n?", "", text, flags=re.M)
           p.write_text(text.rstrip() + "\\nCOMMIT_HASH=" + os.environ["SOURCE_SHA"] + "\\n")
           PY
 

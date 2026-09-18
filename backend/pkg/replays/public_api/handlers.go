@@ -66,7 +66,7 @@ func (h *handlersImpl) downloadSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessID, err := api.GetPathParam(r, "sessionID", api.ParseUint64)
-	if err != nil {
+	if err != nil || sessID == 0 {
 		http.Error(w, "invalid session id", http.StatusBadRequest)
 		return
 	}

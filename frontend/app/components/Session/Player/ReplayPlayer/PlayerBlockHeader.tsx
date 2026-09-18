@@ -1,4 +1,4 @@
-import { Switch } from 'antd';
+import { Button, Switch } from 'antd';
 import cn from 'classnames';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
@@ -16,7 +16,7 @@ import {
 } from 'App/routes';
 import { sessionService } from 'App/services';
 import Tabs from 'Components/Session/Tabs';
-import { BackLink, Button, Link } from 'UI';
+import { BackLink, Link } from 'UI';
 
 import SessionMetaList from 'Shared/SessionItem/SessionMetaList';
 

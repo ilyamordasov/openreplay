@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:24-bookworm-slim AS builder
+WORKDIR /workspace
+
+RUN npm install --global yarn@1.22.22
+
+COPY player ./player
+COPY mcp_app ./mcp_app
+
+WORKDIR /workspace/mcp_app
+RUN yarn install --frozen-lockfile --non-interactive
+RUN yarn build:ui
+RUN yarn build:remote
+
+FROM node:24-bookworm-slim AS runtime
+ENV NODE_ENV=production \
+    MCP_PORT=3000 \
+    MCP_ENDPOINT_PATH=/mcp \
+    MCP_HEALTH_PATH=/healthz
+
+WORKDIR /app/mcp_app
+
+COPY --from=builder /workspace/player /app/player
+COPY --from=builder /workspace/mcp_app/package.json /app/mcp_app/package.json
+COPY --from=builder /workspace/mcp_app/yarn.lock /app/mcp_app/yarn.lock
+COPY --from=builder /workspace/mcp_app/node_modules /app/mcp_app/node_modules
+COPY --from=builder /workspace/mcp_app/dist /app/mcp_app/dist
+COPY --from=builder /workspace/mcp_app/dist-server/remote.mjs /app/mcp_app/dist-server/remote.mjs
+
+USER node
+EXPOSE 3000
+
+CMD ["node", "dist-server/remote.mjs"]

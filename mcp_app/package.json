@@ -4,11 +4,13 @@
   "description": "OpenReplay MCP App - View charts and session replays from your OpenReplay instance",
   "main": "server.ts",
   "scripts": {
-    "build": "npm run build:ui && npm run build:server",
+    "build": "npm run build:ui && npm run build:server && npm run build:remote",
     "build:ui": "vite build",
     "build:server": "esbuild server.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist-server/server.mjs --packages=external",
     "serve": "tsx server.ts",
-    "dev": "npm run build && npm run serve"
+    "dev": "npm run build && npm run serve",
+    "build:remote": "esbuild remote.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist-server/remote.mjs --packages=external",
+    "serve:remote": "tsx remote.ts"
   },
   "keywords": [
     "mcp",

@@ -1,0 +1,59 @@
+name: Remote MCP
+
+on:
+  pull_request:
+    paths:
+      - "mcp_app/**"
+      - ".github/workflows/remote-mcp.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "mcp_app/**"
+      - ".github/workflows/remote-mcp.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build remote MCP image
+        run: docker build -f mcp_app/Dockerfile.remote -t openreplay-mcp:test .
+
+      - name: Start remote MCP
+        run: |
+          docker run -d --rm             --name openreplay-mcp-smoke             -p 127.0.0.1:3000:3000             -e OPENREPLAY_URL=https://example.com             -e MCP_LOCK_APP_URL=1             -e MCP_ACCESS_TOKEN=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef             -e MCP_SOURCE_SHA="$GITHUB_SHA"             openreplay-mcp:test
+
+      - name: Smoke test Streamable HTTP
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'docker logs openreplay-mcp-smoke || true; docker rm -f openreplay-mcp-smoke >/dev/null 2>&1 || true' EXIT
+
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/healthz >/tmp/health.json; then
+              break
+            fi
+            sleep 1
+          done
+          grep -q '"status":"ok"' /tmp/health.json
+
+          code="$(curl -sS -o /tmp/unauth.json -w '%{http_code}'             -X POST http://127.0.0.1:3000/mcp             -H 'content-type: application/json'             --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1"}}}')"
+          test "$code" = "401"
+
+          curl -sS -D /tmp/init.headers -o /tmp/init.body             -X POST http://127.0.0.1:3000/mcp             -H 'authorization: Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'             -H 'content-type: application/json'             -H 'accept: application/json, text/event-stream'             --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1"}}}'
+
+          session_id="$(awk 'BEGIN{IGNORECASE=1} /^mcp-session-id:/ {gsub("\r","",$2); print $2; exit}' /tmp/init.headers)"
+          test -n "$session_id"
+          grep -q 'openreplay-mcp-app' /tmp/init.body
+
+          curl -fsS -o /tmp/tools.body             -X POST http://127.0.0.1:3000/mcp             -H 'authorization: Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'             -H "mcp-session-id: $session_id"             -H 'content-type: application/json'             -H 'accept: application/json, text/event-stream'             --data '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+
+          grep -q 'view_recent_sessions' /tmp/tools.body
+          grep -q 'get_auth_status' /tmp/tools.body
+
+          echo REMOTE_MCP_SMOKE_GREEN

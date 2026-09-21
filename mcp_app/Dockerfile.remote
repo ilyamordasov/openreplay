@@ -8,6 +8,9 @@ RUN yarn --version
 COPY player ./player
 COPY mcp_app ./mcp_app
 
+WORKDIR /workspace/player
+RUN yarn install --frozen-lockfile --non-interactive
+
 WORKDIR /workspace/mcp_app
 RUN yarn install --frozen-lockfile --non-interactive
 RUN yarn build:ui

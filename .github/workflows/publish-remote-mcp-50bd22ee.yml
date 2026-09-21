@@ -1,0 +1,66 @@
+name: Publish remote MCP 50bd22ee
+
+on:
+  push:
+    branches:
+      - ops/publish-remote-mcp-50bd22ee
+    paths:
+      - .github/workflows/publish-remote-mcp-50bd22ee.yml
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  SOURCE_SHA: 50bd22ee2781813f5f52edff43c68ff31e0634e8
+  SHORT_SHA: 50bd22ee
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact main source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push remote MCP
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/openreplay-mcp"
+          docker buildx build \
+            --platform linux/amd64 \
+            --file mcp_app/Dockerfile.remote \
+            --build-arg SOURCE_SHA="${SOURCE_SHA}" \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            --tag "${IMAGE}:main-${SHORT_SHA}" \
+            --tag "${IMAGE}:sha-${SOURCE_SHA}" \
+            --provenance=false \
+            --push \
+            --metadata-file /tmp/image-metadata.json \
+            .
+          DIGEST="$(jq -r '."containerimage.digest"' /tmp/image-metadata.json)"
+          test -n "$DIGEST"
+          echo "${IMAGE}@${DIGEST}" | tee registry-image.txt
+          echo "### Remote MCP" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`${IMAGE}@${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload registry digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-mcp-registry-image
+          path: registry-image.txt
+          if-no-files-found: error

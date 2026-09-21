@@ -3,7 +3,7 @@
 FROM node:24-bookworm-slim AS builder
 WORKDIR /workspace
 
-RUN npm install --global yarn@1.22.22
+RUN yarn --version
 
 COPY player ./player
 COPY mcp_app ./mcp_app

@@ -157,6 +157,28 @@ export function assertHttpsUrl(raw: string): string {
   return u.toString().replace(/\/+$/, "");
 }
 
+// Remote HTTP deployments can pin the OpenReplay instance to the launcher-
+// supplied URL. This prevents an authenticated MCP client from turning the
+// server into a general-purpose HTTPS proxy by reconfiguring the backend.
+const LOCK_APP_URL = process.env.MCP_LOCK_APP_URL === "1";
+
+export function setAppUrl(raw: string): string {
+  const normalized = assertHttpsUrl(raw);
+  if (LOCK_APP_URL && ENV_APP_URL) {
+    const locked = assertHttpsUrl(ENV_APP_URL);
+    if (normalized !== locked) {
+      throw new Error(`OpenReplay URL is locked to ${locked}`);
+    }
+  }
+  state.appUrl = normalized;
+  return state.appUrl;
+}
+
+export function isAppUrlLocked(): boolean {
+  return LOCK_APP_URL && !!ENV_APP_URL;
+}
+
+
 // Clear persisted state
 export async function clearPersistedState() {
   try {

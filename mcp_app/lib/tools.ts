@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import net from "node:net";
 import { z } from "zod";
-import { state, savePersistedState, clearPersistedState, generateAuthCode, assertHttpsUrl } from "./state.js";
+import { state, savePersistedState, clearPersistedState, generateAuthCode, assertHttpsUrl, setAppUrl } from "./state.js";
 import { makeApiRequest, fetchRecentSessions, fetchProjects, getProjectIdByName, fetchSessionReplay, fetchSessionEvents, fetchSessionsTimeseries, fetchPathAnalysis, fetchWebVitals, fetchTableData, fetchFunnel, resolveFilters, resolveFunnelSteps, getOrFetchFilters, fetchEvents, fetchUsers, fetchEventProperties, pollForAuth } from "./api.js";
 import {
   ConfigureBackendSchema,
@@ -1255,7 +1255,7 @@ export function registerInternalTools(server: McpServer) {
     async (args) => {
       console.error("[SERVER] configure_backend called:", args);
       const parsed = ConfigureBackendSchema.parse(args);
-      state.appUrl = assertHttpsUrl(parsed.appUrl);
+      setAppUrl(parsed.appUrl);
       return {
         content: [
           {
@@ -1291,7 +1291,8 @@ export function registerInternalTools(server: McpServer) {
       });
 
       state.jwt = response.jwt || response.data?.jwt;
-      state.userData = response.data
+      state.userData = response.data;
+      await savePersistedState();
 
       return {
         content: [
@@ -1363,7 +1364,7 @@ export function registerInternalTools(server: McpServer) {
       // Validate any model-supplied URL up front; reject non-https before it
       // ever reaches an authorize link or API request.
       if (parsed.appUrl) {
-        state.appUrl = assertHttpsUrl(parsed.appUrl);
+        setAppUrl(parsed.appUrl);
       }
       const appUrl = assertHttpsUrl(state.appUrl);
 

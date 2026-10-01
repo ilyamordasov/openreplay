@@ -264,21 +264,21 @@ func (s *searchImpl) getSingleSessions(projectId int, userId uint64, req *model.
 
 
 func groupingIdentity(session model.Session) string {
-	// Explicit application user identity is authoritative when available.
-	if session.UserId != "" {
-		return "user:" + session.UserId
-	}
-	// user_uuid is the tracker fingerprint persisted in browser localStorage.
-	// Partition anonymous sessions by it before applying the time window so
-	// two different visitors can never merge merely because they overlap.
+	// Partition by every available stable identity signal before applying the
+	// time window. In particular, a different tracker user_uuid (fingerprint)
+	// must never merge merely because sessions overlap in time.
+	parts := make([]string, 0, 3)
 	if session.UserUuid != "" {
-		if session.UserAnonymousId != nil && *session.UserAnonymousId != "" {
-			return "fingerprint:" + session.UserUuid + "|anonymous:" + *session.UserAnonymousId
-		}
-		return "fingerprint:" + session.UserUuid
+		parts = append(parts, "fingerprint:"+session.UserUuid)
+	}
+	if session.UserId != "" {
+		parts = append(parts, "user:"+session.UserId)
 	}
 	if session.UserAnonymousId != nil && *session.UserAnonymousId != "" {
-		return "anonymous:" + *session.UserAnonymousId
+		parts = append(parts, "anonymous:"+*session.UserAnonymousId)
+	}
+	if len(parts) > 0 {
+		return strings.Join(parts, "|")
 	}
 	// No identity evidence: fail closed and keep the session isolated.
 	return "session:" + session.SessionId

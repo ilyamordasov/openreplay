@@ -6,6 +6,7 @@ import RightBlock from 'Components/Session/RightBlock';
 import { PlayerContext } from 'Components/Session/playerContext';
 import Session from 'Types/session';
 import PlayerBlock from './PlayerBlock';
+import StitchedStatsPanel from './StitchedStatsPanel';
 import { mobileScreen } from 'App/utils/isMobile';
 
 interface IProps {
@@ -73,11 +74,13 @@ function PlayerContent({
       <div
         className="w-full h-full"
         style={
-          activeTab && !fullscreen
-            ? {
-                maxWidth: `calc(100% - ${activeTab === 'EXPORT' ? '360px' : '270px'})`,
-              }
-            : undefined
+          !fullscreen && session.isStitched
+            ? { maxWidth: 'calc(100% - 320px)' }
+            : activeTab && !fullscreen
+              ? {
+                  maxWidth: `calc(100% - ${activeTab === 'EXPORT' ? '360px' : '270px'})`,
+                }
+              : undefined
         }
       >
         <div className={'relative flex h-full'} data-fullscreen={fullscreen}>
@@ -88,7 +91,9 @@ function PlayerContent({
           />
         </div>
       </div>
-      {!fullscreen && activeTab !== '' ? (
+      {!fullscreen && session.isStitched ? (
+        <StitchedStatsPanel />
+      ) : !fullscreen && activeTab !== '' ? (
         <RightBlock setActiveTab={setActiveTab} activeTab={activeTab} />
       ) : null}
     </div>

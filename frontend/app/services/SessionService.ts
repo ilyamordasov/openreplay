@@ -1,6 +1,7 @@
 import APIClient, { clean as cleanParams } from 'App/api_client';
 import { ISession } from 'Types/session/session';
 import { IErrorStack } from 'Types/session/errorStack';
+import { unzipSync } from 'fflate';
 
 export default class SettingsService {
   private client: APIClient;
@@ -118,6 +119,94 @@ export default class SettingsService {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
+  }
+
+
+  async prepareStitchedSession(sessionIds: string[]): Promise<{
+    manifest: {
+      format: string;
+      version: number;
+      sessionId: string;
+      sourceSessionIds: string[];
+      files: string[];
+      startTs: number;
+      endTs: number;
+      durationMs: number;
+      gaps: string;
+    };
+    domURL: string[];
+    devtoolsURL: string[];
+    blobURLs: string[];
+  }> {
+    if (sessionIds.length === 0) {
+      throw new Error('No sessions to play');
+    }
+
+    const response = await this.client.post('/sessions/download', {
+      sessionIds,
+    });
+    if (!response.ok) {
+      let message = 'Failed to prepare merged session';
+      try {
+        const payload = await response.json();
+        message =
+          payload?.errors?.[0] ||
+          payload?.error ||
+          payload?.message ||
+          message;
+      } catch {
+        // Keep generic error for non-JSON API responses.
+      }
+      throw new Error(message);
+    }
+
+    const archive = unzipSync(new Uint8Array(await response.arrayBuffer()));
+    const manifestBytes = archive['manifest.json'];
+    const domBytes = archive['raw/dom.mobs'];
+    if (!manifestBytes || !domBytes) {
+      throw new Error('Merged session archive is incomplete');
+    }
+
+    const manifest = JSON.parse(
+      new TextDecoder().decode(manifestBytes),
+    ) as {
+      format: string;
+      version: number;
+      sessionId: string;
+      sourceSessionIds: string[];
+      files: string[];
+      startTs: number;
+      endTs: number;
+      durationMs: number;
+      gaps: string;
+    };
+    if (
+      manifest.format !== 'openreplay-stitched-session-export' ||
+      manifest.version !== 1 ||
+      manifest.sourceSessionIds.length !== sessionIds.length
+    ) {
+      throw new Error('Merged session manifest is invalid');
+    }
+
+    const blobURLs: string[] = [];
+    const makeURL = (bytes: Uint8Array) => {
+      const url = URL.createObjectURL(
+        new Blob([bytes], { type: 'application/octet-stream' }),
+      );
+      blobURLs.push(url);
+      return url;
+    };
+
+    const domURL = [makeURL(domBytes)];
+    const devtoolsBytes = archive['raw/devtools.mob'];
+    const devtoolsURL = devtoolsBytes ? [makeURL(devtoolsBytes)] : [];
+
+    return {
+      manifest,
+      domURL,
+      devtoolsURL,
+      blobURLs,
+    };
   }
 
   getRecommendedSessions(sort?: any): Promise<{

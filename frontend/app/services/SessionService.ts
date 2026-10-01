@@ -37,7 +37,17 @@ export default class SettingsService {
     return this.client.post(`/${projectId}/conditions`, data);
   }
 
-  getSessions(filter: any): Promise<{ sessions: ISession[]; total: number }> {
+  getSessions(filter: any): Promise<{
+    sessions?: ISession[];
+    groups?: Array<{
+      groupId: string;
+      startTs: number;
+      endTs: number;
+      eventsCount: number;
+      sessions: ISession[];
+    }>;
+    total: number;
+  }> {
     return this.client
       .post('/sessions/search', filter)
       .then((r) => r.json())

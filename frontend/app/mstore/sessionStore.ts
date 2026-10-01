@@ -128,6 +128,14 @@ export default class SessionStore {
 
   list: Session[] = [];
 
+  sessionGroups: Array<{
+    groupId: string;
+    startTs: number;
+    endTs: number;
+    eventsCount: number;
+    sessions: Session[];
+  }> = [];
+
   bookmarks: Bookmarks = {
     list: [],
     page: 1,
@@ -311,13 +319,20 @@ export default class SessionStore {
         }
       }
       setSessionFilter(cleanSessionFilters(params));
-      const data = await sessionService.getSessions(params);
-      const list = data.sessions.map((s) => new Session(s));
+      const data: any = await sessionService.getSessions(params);
+      const groups = (data.groups ?? []).map((group: any) => ({
+        ...group,
+        sessions: (group.sessions ?? []).map((s: any) => new Session(s)),
+      }));
+      const list = groups.length
+        ? groups.flatMap((group: any) => group.sessions)
+        : (data.sessions ?? []).map((s: any) => new Session(s));
       runInAction(() => {
         this.list = list;
+        this.sessionGroups = groups;
         this.total = data.total;
-        this.sessionIds = data.sessions.map((s) => s.sessionId);
-        this.favoriteList = list.filter((s) => s.favorite);
+        this.sessionIds = list.map((s: Session) => s.sessionId);
+        this.favoriteList = list.filter((s: Session) => s.favorite);
       });
     } catch (e) {
       console.error(e);
@@ -330,6 +345,7 @@ export default class SessionStore {
 
   clearAll = () => {
     this.list = [];
+    this.sessionGroups = [];
     this.clearCurrentSession();
   };
 
@@ -658,6 +674,7 @@ export default class SessionStore {
 
   clearList = () => {
     this.list = [];
+    this.sessionGroups = [];
     this.total = 0;
     this.sessionIds = [];
     this.bookmarks = {

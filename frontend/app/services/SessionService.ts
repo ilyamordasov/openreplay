@@ -133,6 +133,14 @@ export default class SettingsService {
       endTs: number;
       durationMs: number;
       gaps: string;
+      segments: Array<{
+        sessionId: string;
+        sourceStartTs: number;
+        sourceEndTs: number;
+        targetStartTs: number;
+        targetEndTs: number;
+        durationMs: number;
+      }>;
     };
     domURL: string[];
     devtoolsURL: string[];
@@ -179,11 +187,21 @@ export default class SettingsService {
       endTs: number;
       durationMs: number;
       gaps: string;
+      segments: Array<{
+        sessionId: string;
+        sourceStartTs: number;
+        sourceEndTs: number;
+        targetStartTs: number;
+        targetEndTs: number;
+        durationMs: number;
+      }>;
     };
     if (
       manifest.format !== 'openreplay-stitched-session-export' ||
       manifest.version !== 1 ||
-      manifest.sourceSessionIds.length !== sessionIds.length
+      manifest.sourceSessionIds.length !== sessionIds.length ||
+      !Array.isArray(manifest.segments) ||
+      manifest.segments.length !== sessionIds.length
     ) {
       throw new Error('Merged session manifest is invalid');
     }

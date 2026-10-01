@@ -457,7 +457,14 @@ export default class SessionStore {
             sum + Math.max(1, Number(event.count) || 1),
           0,
         );
-      const sessionMisclicks = rawIssues.filter(
+      const normalizedIssues = rawIssues.map((issue: any) => ({
+        ...issue,
+        // Go events API serializes this field as "issueType", while the
+        // frontend Issue model uses "type". Accept both so merged analytics
+        // sees the same dead-click issues as an ordinary session replay.
+        type: issue.type ?? issue.issueType,
+      }));
+      const sessionMisclicks = normalizedIssues.filter(
         (issue: any) => issue.type === 'dead_click',
       ).length;
 
@@ -465,27 +472,25 @@ export default class SessionStore {
       misclickCount += sessionMisclicks;
 
       if (segment) {
-        rawIssues
-          .filter((issue: any) => issue.type === 'dead_click')
-          .forEach((issue: any) => {
-            const rawTimestamp =
-              Number(issue.timestamp) ||
-              Number(issue.startedAt) ||
-              (Number.isFinite(Number(issue.time))
-                ? segment.sourceStartTs + Number(issue.time)
-                : segment.sourceStartTs);
-            const targetTimestamp = this.mapStitchedTimestamp(
-              rawTimestamp,
-              segment,
-            );
-            shiftedIssues.push({
-              ...issue,
-              timestamp: targetTimestamp,
-              startedAt: segment.targetStartTs,
-              sessionId,
-              sourceSessionId: sessionId,
-            });
+        normalizedIssues.forEach((issue: any) => {
+          const rawTimestamp =
+            Number(issue.timestamp) ||
+            Number(issue.startedAt) ||
+            (Number.isFinite(Number(issue.time))
+              ? segment.sourceStartTs + Number(issue.time)
+              : segment.sourceStartTs);
+          const targetTimestamp = this.mapStitchedTimestamp(
+            rawTimestamp,
+            segment,
+          );
+          shiftedIssues.push({
+            ...issue,
+            timestamp: targetTimestamp,
+            startedAt: segment.targetStartTs,
+            sessionId,
+            sourceSessionId: sessionId,
           });
+        });
       }
 
       sessionStats.push({

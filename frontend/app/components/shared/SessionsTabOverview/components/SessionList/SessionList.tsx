@@ -3,6 +3,7 @@ import { FilterKey } from 'Types/filter/filterType';
 import SessionItem from 'Shared/SessionItem';
 import { NoContent, Loader, Pagination, Icon } from 'UI';
 import { Button } from 'antd';
+import { DownOutlined, RightOutlined } from '@ant-design/icons';
 import { useLocation, withRouter } from 'App/routing';
 import AnimatedSVG, { ICONS } from 'Shared/AnimatedSVG/AnimatedSVG';
 import { numberWithCommas } from 'App/utils';
@@ -24,6 +25,60 @@ let sessionStatusTimeOut: any = null;
 
 const STATUS_FREQUENCY = 5000;
 
+function formatGroupTime(timestamp: number) {
+  return new Date(timestamp).toLocaleString();
+}
+
+function NearbySessionGroup({
+  group,
+  sessionItemProps,
+}: {
+  group: any;
+  sessionItemProps: (session: any) => Record<string, any>;
+}) {
+  const [expanded, setExpanded] = React.useState(true);
+  const sessions = group.sessions ?? [];
+  const first = sessions[0];
+  const totalDurationMs = sessions.reduce(
+    (sum: number, session: any) => sum + (session.durationMs ?? 0),
+    0,
+  );
+  const totalMinutes = Math.max(1, Math.round(totalDurationMs / 60000));
+
+  return (
+    <div className="border-b">
+      <button
+        type="button"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left bg-neutral-50 hover:bg-neutral-100"
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span className="text-neutral-500">
+          {expanded ? <DownOutlined /> : <RightOutlined />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="font-medium truncate">
+            {first?.userDisplayName || 'Anonymous User'}
+          </div>
+          <div className="text-xs text-neutral-500">
+            {formatGroupTime(group.startTs)} — {formatGroupTime(group.endTs)}
+          </div>
+        </div>
+        <div className="text-sm text-neutral-500 whitespace-nowrap">
+          {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'} · {totalMinutes}m
+        </div>
+      </button>
+
+      {expanded
+        ? sessions.map((session: any) => (
+            <div key={session.sessionId} className="border-t pl-6">
+              <SessionItem session={session} {...sessionItemProps(session)} />
+            </div>
+          ))
+        : null}
+    </div>
+  );
+}
+
 function SessionList() {
   const location = useLocation(); // Get the current URL location
   const isBookmark = location.pathname.includes('/bookmarks');
@@ -39,12 +94,13 @@ function SessionList() {
   } = useStore();
   const { isEnterprise } = userStore;
   const { isLoggedIn } = userStore;
-  const { lastPlayedSessionId, list, total } = sessionStore;
+  const { lastPlayedSessionId, list, total, sessionGroups } = sessionStore;
   const loading = sessionStore.loadingSessions;
   const onToggleFavorite = sessionStore.toggleFavorite;
   const { updateProjectRecordingStatus, siteId, previousSiteid } =
     projectsStore;
   const { currentPage, activeTab, pageSize } = searchStore;
+  const { groupByUser } = searchStore.instance;
   const { filters } = searchStore.instance;
   const _filterKeys = filters.map((i: any) => i.key);
   const hasUserFilter =
@@ -217,21 +273,39 @@ function SessionList() {
                 </Button>
               </div>
             }
-            show={!loading && list.length === 0}
+            show={
+              !loading &&
+              (groupByUser ? sessionGroups.length === 0 : list.length === 0)
+            }
           >
-            {list.map((session: any) => (
-              <div key={session.sessionId} className="border-b">
-                <SessionItem
-                  session={session}
-                  hasUserFilter={hasUserFilter}
-                  onUserClick={onUserClick}
-                  metaList={metaList}
-                  lastPlayedSessionId={lastPlayedSessionId}
-                  bookmarked={isBookmark}
-                  toggleFavorite={toggleFavorite}
-                />
-              </div>
-            ))}
+            {groupByUser
+              ? sessionGroups.map((group: any) => (
+                  <NearbySessionGroup
+                    key={group.groupId}
+                    group={group}
+                    sessionItemProps={() => ({
+                      hasUserFilter,
+                      onUserClick,
+                      metaList,
+                      lastPlayedSessionId,
+                      bookmarked: isBookmark,
+                      toggleFavorite,
+                    })}
+                  />
+                ))
+              : list.map((session: any) => (
+                  <div key={session.sessionId} className="border-b">
+                    <SessionItem
+                      session={session}
+                      hasUserFilter={hasUserFilter}
+                      onUserClick={onUserClick}
+                      metaList={metaList}
+                      lastPlayedSessionId={lastPlayedSessionId}
+                      bookmarked={isBookmark}
+                      toggleFavorite={toggleFavorite}
+                    />
+                  </div>
+                ))}
           </NoContent>
 
           {total > 0 && (
@@ -243,11 +317,12 @@ function SessionList() {
                 </span>{' '}
                 {t('to')}{' '}
                 <span className="font-medium">
-                  {(currentPage - 1) * pageSize + list.length}
+                  {(currentPage - 1) * pageSize +
+                    (groupByUser ? sessionGroups.length : list.length)}
                 </span>{' '}
                 {t('of')}{' '}
                 <span className="font-medium">{numberWithCommas(total)}</span>{' '}
-                {t('sessions.')}
+                {groupByUser ? t('groups.') : t('sessions.')}
               </div>
               <Pagination
                 page={currentPage}

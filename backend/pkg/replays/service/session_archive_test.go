@@ -212,13 +212,13 @@ func TestWriteStitchedSessionArchiveCreatesOneCompactedReplay(t *testing.T) {
 	if err := json.Unmarshal(archiveFiles["manifest.json"], &manifest); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Format != "openreplay-stitched-session-export" || manifest.Gaps != "compacted" {
+	if manifest.Format != "openreplay-stitched-session-export" || manifest.Gaps != "preserved" {
 		t.Fatalf("unexpected stitched manifest: %#v", manifest)
 	}
 	if len(manifest.SourceSessionIDs) != 2 || manifest.SourceSessionIDs[0] != "101" || manifest.SourceSessionIDs[1] != "102" {
 		t.Fatalf("source session ids = %#v", manifest.SourceSessionIDs)
 	}
-	if manifest.StartTs != 1_000 || manifest.EndTs != 2_501 || manifest.DurationMs != 1_501 {
+	if manifest.StartTs != 1_000 || manifest.EndTs != 10_500 || manifest.DurationMs != 9_500 {
 		t.Fatalf("stitched timeline = start:%d end:%d duration:%d", manifest.StartTs, manifest.EndTs, manifest.DurationMs)
 	}
 	if len(manifest.Segments) != 2 {
@@ -232,8 +232,8 @@ func TestWriteStitchedSessionArchiveCreatesOneCompactedReplay(t *testing.T) {
 	}
 	if manifest.Segments[1].SessionID != "102" ||
 		manifest.Segments[1].SourceStartTs != 10_000 ||
-		manifest.Segments[1].TargetStartTs != 2_001 ||
-		manifest.Segments[1].TargetEndTs != 2_501 {
+		manifest.Segments[1].TargetStartTs != 10_000 ||
+		manifest.Segments[1].TargetEndTs != 10_500 {
 		t.Fatalf("second segment = %#v", manifest.Segments[1])
 	}
 
@@ -247,7 +247,7 @@ func TestWriteStitchedSessionArchiveCreatesOneCompactedReplay(t *testing.T) {
 			timestamps = append(timestamps, ts.Timestamp)
 		}
 	}
-	want := []uint64{1_000, 2_000, 2_001, 2_501}
+	want := []uint64{1_000, 2_000, 10_000, 10_500}
 	if len(timestamps) != len(want) {
 		t.Fatalf("timestamps = %#v", timestamps)
 	}

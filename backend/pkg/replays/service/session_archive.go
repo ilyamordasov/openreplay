@@ -343,7 +343,7 @@ func (f *filesImpl) WriteStitchedSessionArchive(sessIDs []uint64, w io.Writer) e
 		StartTs:          plan[0].TargetStart,
 		EndTs:            plan[len(plan)-1].TargetEnd,
 		DurationMs:       plan[len(plan)-1].TargetEnd - plan[0].TargetStart,
-		Gaps:             "preserved",
+		Gaps:             "compacted",
 		Segments:         segments,
 	}
 	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")

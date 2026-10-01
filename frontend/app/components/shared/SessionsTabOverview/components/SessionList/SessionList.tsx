@@ -36,6 +36,7 @@ function NearbySessionGroup({
   group: any;
   sessionItemProps: (session: any) => Record<string, any>;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(true);
   const sessions = group.sessions ?? [];
   const first = sessions[0];
@@ -57,14 +58,16 @@ function NearbySessionGroup({
         </span>
         <div className="min-w-0 flex-1">
           <div className="font-medium truncate">
-            {first?.userDisplayName || 'Anonymous User'}
+            {first?.userDisplayName || t('Anonymous User')}
           </div>
           <div className="text-xs text-neutral-500">
             {formatGroupTime(group.startTs)} — {formatGroupTime(group.endTs)}
           </div>
         </div>
         <div className="text-sm text-neutral-500 whitespace-nowrap">
-          {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'} · {totalMinutes}m
+          {sessions.length}{' '}
+          {sessions.length === 1 ? t('session') : t('sessions')} · {totalMinutes}
+          {t('m')}
         </div>
       </button>
 

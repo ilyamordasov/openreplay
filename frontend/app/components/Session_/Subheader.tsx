@@ -45,6 +45,7 @@ function SubHeader(props: any) {
   const { t } = useTranslation();
   const { isEnterprise, account } = userStore;
   const currentSession = sessionStore.current;
+  const isStitched = Boolean(currentSession.isStitched);
   const favorite = currentSession.favorite;
   const projectId = projectsStore.siteId;
   const integrations = integrationsStore.issues.list;
@@ -222,7 +223,7 @@ function SubHeader(props: any) {
       <div className="w-full px-4 flex items-center border-b relative">
         <SessionTabs />
 
-        {!hideTools && (
+        {!hideTools && !isStitched && (
           <div
             className={cn(
               'ml-auto text-sm flex items-center color-gray-medium gap-2',

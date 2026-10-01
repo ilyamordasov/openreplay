@@ -5,6 +5,7 @@ import { clearLogs } from 'App/dev/console';
 import usePageTitle from 'App/hooks/usePageTitle';
 import { useStore } from 'App/mstore';
 import { sessions as sessionsRoute } from 'App/routes';
+import { useLocation } from 'App/routing';
 import MobilePlayer from 'Components/Session/MobilePlayer';
 import { Link, Loader, NoContent } from 'UI';
 import { observer } from 'mobx-react-lite';
@@ -23,24 +24,39 @@ function Session({
   match: any;
 }) {
   const { t } = useTranslation();
+  const location = useLocation();
   usePageTitle('OpenReplay Session Player');
   const { sessionStore } = useStore();
   const hasErrors = sessionStore.fetchFailed;
   const session = sessionStore.current;
   const fetchV2 = sessionStore.fetchSessionData;
+  const fetchStitched = sessionStore.fetchStitchedSessionData;
   const { clearCurrentSession } = sessionStore;
+  const stitchedParam = new URLSearchParams(location.search).get('stitched') || '';
+  const stitchedSessionIds = stitchedParam
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
 
   useEffect(() => {
     if (sessionId != null) {
-      trackerInstance.event('session_opened', { sessionId });
-      void fetchV2(sessionId);
+      if (stitchedSessionIds.length > 1) {
+        trackerInstance.event('stitched_session_opened', {
+          sessionId,
+          count: stitchedSessionIds.length,
+        });
+        void fetchStitched(stitchedSessionIds);
+      } else {
+        trackerInstance.event('session_opened', { sessionId });
+        void fetchV2(sessionId);
+      }
     } else {
       console.error('No sessionID in route.');
     }
     return () => {
       clearCurrentSession();
     };
-  }, [sessionId]);
+  }, [sessionId, stitchedParam]);
 
   useEffect(() => {
     clearLogs();

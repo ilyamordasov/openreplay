@@ -1,4 +1,12 @@
 {
+  "Group stats": "Group stats",
+  "Misclick": "Misclick",
+  "Misclicks": "Misclicks",
+  "Misclick rate": "Misclick rate",
+  "Click distribution": "Click distribution",
+  "clicks": "clicks",
+  "misclicks": "misclicks",
+  "Some session analytics could not be loaded": "Some session analytics could not be loaded",
   "Merged replay": "Merged replay",
   "Play merged": "Play merged",
   "Export sessions": "Export sessions",

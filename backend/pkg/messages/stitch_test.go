@@ -193,3 +193,48 @@ func TestDecodeReplayStreamAcceptsMultipleSizedBatchesInOneMobFile(t *testing.T)
 		t.Fatalf("timestamps = %#v", timestamps)
 	}
 }
+
+
+func TestStitchReplayStreamsKeepsSingleSyntheticSessionLifecycle(t *testing.T) {
+	first := testIndexedReplay(
+		&Timestamp{Timestamp: 1_000},
+		&SessionStart{Timestamp: 1_000, UserUUID: "fp-a"},
+		&CreateDocument{},
+		&Timestamp{Timestamp: 1_100},
+		&SessionEnd{Timestamp: 1_100},
+	)
+	second := testIndexedReplay(
+		&Timestamp{Timestamp: 2_000},
+		&SessionStart{Timestamp: 2_000, UserUUID: "fp-a"},
+		&CreateDocument{},
+		&Timestamp{Timestamp: 2_100},
+		&SessionEnd{Timestamp: 2_100},
+	)
+
+	stitched, _, err := StitchReplayStreams([][]byte{first, second})
+	if err != nil {
+		t.Fatalf("stitch: %v", err)
+	}
+	decoded, err := DecodeReplayStream(stitched)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	var starts, ends, documents int
+	for _, message := range decoded {
+		switch message.(type) {
+		case *SessionStart:
+			starts++
+		case *SessionEnd:
+			ends++
+		case *CreateDocument:
+			documents++
+		}
+	}
+	if starts != 1 || ends != 1 {
+		t.Fatalf("lifecycle starts=%d ends=%d, want one synthetic session", starts, ends)
+	}
+	if documents != 2 {
+		t.Fatalf("CreateDocument count=%d, want 2 source DOM resets", documents)
+	}
+}

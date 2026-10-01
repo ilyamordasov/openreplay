@@ -145,3 +145,51 @@ func TestJoinReplayContinuationStripsRepeatedHeader(t *testing.T) {
 		t.Fatalf("joined length = %d, want %d", len(joined), len(first)+len(second)-8)
 	}
 }
+
+
+func appendSizedTestMessage(data []byte, message Message) []byte {
+	encoded := message.Encode()
+	body := encoded[1:]
+	data = append(data, encoded[0])
+	size := len(body)
+	data = append(data, byte(size), byte(size>>8), byte(size>>16))
+	data = append(data, body...)
+	return data
+}
+
+func TestDecodeReplayStreamAcceptsMultipleSizedBatchesInOneMobFile(t *testing.T) {
+	data := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe}
+	data = append(data, (&BatchMetadata{
+		Version: 2, PageNo: 1, FirstIndex: 0, Timestamp: 1_000,
+	}).Encode()...)
+	data = appendSizedTestMessage(data, &Timestamp{Timestamp: 1_000})
+	data = appendSizedTestMessage(data, &CreateDocument{})
+
+	data = append(data, (&BatchMetadata{
+		Version: 2, PageNo: 1, FirstIndex: 2, Timestamp: 1_500,
+	}).Encode()...)
+	data = appendSizedTestMessage(data, &Timestamp{Timestamp: 1_500})
+	data = appendSizedTestMessage(data, &CreateDocument{})
+
+	decoded, err := DecodeReplayStream(data)
+	if err != nil {
+		t.Fatalf("DecodeReplayStream() error = %v", err)
+	}
+
+	var timestamps []uint64
+	var batchMetadataCount int
+	for _, message := range decoded {
+		switch msg := message.(type) {
+		case *Timestamp:
+			timestamps = append(timestamps, msg.Timestamp)
+		case *BatchMetadata:
+			batchMetadataCount++
+		}
+	}
+	if batchMetadataCount != 2 {
+		t.Fatalf("batch metadata count = %d, want 2", batchMetadataCount)
+	}
+	if len(timestamps) != 2 || timestamps[0] != 1_000 || timestamps[1] != 1_500 {
+		t.Fatalf("timestamps = %#v", timestamps)
+	}
+}

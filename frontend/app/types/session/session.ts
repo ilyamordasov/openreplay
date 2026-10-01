@@ -166,14 +166,18 @@ export interface ISession {
   }>;
   stitchedStats?: {
     sessionCount: number;
+    eventCount: number;
     clickCount: number;
     misclickCount: number;
+    clickRageCount: number;
     analyticsComplete: boolean;
     sessions: Array<{
       sessionId: string;
       index: number;
+      eventCount: number;
       clickCount: number;
       misclickCount: number;
+      clickRageCount: number;
       share: number;
       targetStartTs: number;
       sourceStartTs: number;

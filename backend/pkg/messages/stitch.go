@@ -83,23 +83,65 @@ func decodeLegacyStream(data []byte) ([]Message, error) {
 }
 
 func decodeSizedStream(data []byte) ([]Message, error) {
-	// messageReader.Parse rewrites size bytes in place for zero-copy RawMessage
-	// views, so keep the caller's raw object immutable.
-	buf := append([]byte(nil), data...)
-	reader := NewMessageReader(buf)
-	if err := reader.Parse(nil); err != nil {
-		return nil, err
-	}
-
+	// A stored mob file is a concatenation of tracker batches. Each batch may
+	// start with its own BatchMetadata, so parse framing directly instead of
+	// MessageReader.Parse, which validates one batch at a time.
+	reader := NewBytesReader(data)
 	decoded := make([]Message, 0)
-	for reader.Next() {
-		raw := reader.Message()
-		msg := raw.Decode()
-		if msg == nil {
-			return nil, fmt.Errorf("decode replay message type %d", raw.TypeID())
+	var version uint64
+	var index uint64
+
+	for reader.Pointer() < int64(len(data)) {
+		msgType, err := reader.ReadUint()
+		if err != nil {
+			return nil, fmt.Errorf("read sized replay message type: %w", err)
 		}
+
+		if msgType == MsgBatchMetadata {
+			msg, err := DecodeBatchMetadata(reader)
+			if err != nil {
+				return nil, fmt.Errorf("decode replay batch metadata: %w", err)
+			}
+			meta := msg.(*BatchMetadata)
+			if meta.Version < 1 || meta.Version > 5 {
+				return nil, fmt.Errorf("unsupported replay batch version %d", meta.Version)
+			}
+			version = meta.Version
+			index = meta.PageNo<<32 + meta.FirstIndex
+			msg.Meta().Index = index
+			decoded = append(decoded, msg)
+			continue
+		}
+
+		if version == 0 {
+			return nil, errors.New("sized replay message before batch metadata")
+		}
+
+		size, err := reader.ReadSize()
+		if err != nil {
+			return nil, fmt.Errorf("read sized replay message size: %w", err)
+		}
+		start := reader.Pointer()
+		end := start + int64(size)
+		if end > int64(len(data)) {
+			return nil, fmt.Errorf("sized replay message %d exceeds stream bounds", msgType)
+		}
+
+		bodyReader := NewBytesReader(data[start:end])
+		msg, err := ReadMessage(msgType, bodyReader)
+		if err != nil {
+			return nil, fmt.Errorf("decode sized replay message %d: %w", msgType, err)
+		}
+		if bodyReader.Pointer() > int64(size) {
+			return nil, fmt.Errorf("decoded replay message %d beyond declared size", msgType)
+		}
+		reader.SetPointer(end)
+		index++
+		msg = transformDeprecated(msg)
+		msg.Meta().Index = index
 		decoded = append(decoded, msg)
 	}
+
 	if len(decoded) == 0 {
 		return nil, errors.New("empty sized replay stream")
 	}

@@ -261,24 +261,21 @@
 
 .stitchedClickMarker {
   position: absolute;
-  top: 8px;
-  width: 6px;
-  height: 6px;
-  margin-left: -3px;
+  top: 3px;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
   padding: 0;
-  border: 1px solid white;
-  border-radius: 50%;
+  border: 0;
+  border-radius: 1px;
   background: #f0a930;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
   cursor: pointer;
   z-index: 92;
 }
 
 .stitchedClickMarker:hover,
 .stitchedClickMarker:focus {
-  width: 9px;
-  height: 9px;
-  margin-left: -4.5px;
-  top: 6.5px;
+  width: 4px;
+  margin-left: -2px;
   outline: none;
 }

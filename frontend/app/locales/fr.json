@@ -1,4 +1,6 @@
 {
+  "Export sessions": "Exporter les sessions",
+  "Failed to export sessions": "Échec de l’export des sessions",
   "Group nearby · 2h": "Regrouper proches · 2 h",
   "Group sessions from the same user when the gap between them is at most 2 hours": "Regrouper les sessions du même utilisateur lorsque l’intervalle entre elles est inférieur ou égal à 2 heures",
   "groups.": "groupes.",

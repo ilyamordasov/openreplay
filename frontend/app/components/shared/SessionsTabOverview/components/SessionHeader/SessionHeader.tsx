@@ -1,4 +1,6 @@
 import React from 'react';
+import { Button, Tooltip } from 'antd';
+import { useLocation } from 'App/routing';
 import Period from 'Types/app/period';
 import SelectDateRange from 'Shared/SelectDateRange';
 import { useStore } from 'App/mstore';
@@ -8,7 +10,9 @@ import SessionTags from '../SessionTags';
 
 function SessionHeader() {
   const { searchStore } = useStore();
-  const { startDate, endDate, rangeValue } = searchStore.instance;
+  const location = useLocation();
+  const { startDate, endDate, rangeValue, groupByUser } = searchStore.instance;
+  const isBookmarks = location.pathname.includes('/bookmarks');
 
   const period = Period({
     start: startDate,
@@ -22,6 +26,14 @@ function SessionHeader() {
     void searchStore.fetchSessions(true);
   };
 
+  const toggleNearbyGrouping = () => {
+    searchStore.edit({
+      groupByUser: !groupByUser,
+      groupWindowMinutes: 120,
+    });
+    void searchStore.fetchSessions(true);
+  };
+
   return (
     <div
       className="flex items-center px-4 py-3 justify-between w-full"
@@ -29,7 +41,18 @@ function SessionHeader() {
     >
       <div className={`flex w-full flex-wrap gap-2 justify-between`}>
         <SessionTags />
-        <div className={'flex items-start flex-row'}>
+        <div className={'flex items-center flex-row gap-1'}>
+          {!isBookmarks ? (
+            <Tooltip title="Group sessions from the same user when the gap between them is at most 2 hours">
+              <Button
+                size="small"
+                type={groupByUser ? 'primary' : 'default'}
+                onClick={toggleNearbyGrouping}
+              >
+                Group nearby · 2h
+              </Button>
+            </Tooltip>
+          ) : null}
           <SelectDateRange
             isAnt
             period={period}

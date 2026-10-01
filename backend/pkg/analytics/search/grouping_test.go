@@ -171,3 +171,41 @@ func TestGroupNearbySessionsUsesFingerprintBeforeAnonymousIDFallback(t *testing.
 		t.Fatalf("expected fingerprint to prevent a shared anonymous label from merging users, got %d", len(groups))
 	}
 }
+
+
+func TestGroupNearbySessionsDoesNotMergeSameUserIdAcrossDifferentFingerprints(t *testing.T) {
+	sessions := []model.Session{
+		{SessionId: "201", UserId: "u1", UserUuid: "fp-a", StartTs: 1_000, Duration: 10_000},
+		{SessionId: "202", UserId: "u1", UserUuid: "fp-b", StartTs: 1_001, Duration: 10_000},
+	}
+
+	groups := groupNearbySessions(sessions, 120, "startTs", "asc")
+	if len(groups) != 2 {
+		t.Fatalf("expected different fingerprints to stay separated despite matching userId, got %d groups", len(groups))
+	}
+}
+
+func TestGroupNearbySessionsDoesNotMergeSameFingerprintAcrossDifferentUsers(t *testing.T) {
+	sessions := []model.Session{
+		{SessionId: "301", UserId: "u1", UserUuid: "fp-a", StartTs: 1_000, Duration: 10_000},
+		{SessionId: "302", UserId: "u2", UserUuid: "fp-a", StartTs: 1_001, Duration: 10_000},
+	}
+
+	groups := groupNearbySessions(sessions, 120, "startTs", "asc")
+	if len(groups) != 2 {
+		t.Fatalf("expected differing explicit users on one fingerprint to stay separated, got %d groups", len(groups))
+	}
+}
+
+func TestGroupNearbySessionsMergesOnlyMatchingIdentityThenTimeWindow(t *testing.T) {
+	anonymousID := "anon-a"
+	sessions := []model.Session{
+		{SessionId: "401", UserUuid: "fp-a", UserAnonymousId: &anonymousID, StartTs: 1_000, Duration: 10_000},
+		{SessionId: "402", UserUuid: "fp-a", UserAnonymousId: &anonymousID, StartTs: 20_000, Duration: 10_000},
+	}
+
+	groups := groupNearbySessions(sessions, 120, "startTs", "asc")
+	if len(groups) != 1 {
+		t.Fatalf("expected exact matching identity signals inside time window to group, got %d groups", len(groups))
+	}
+}

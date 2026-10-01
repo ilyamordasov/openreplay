@@ -591,6 +591,8 @@ export default class SessionStore {
         runInAction(() => {
           this.current = enrichedSession;
         });
+      }).catch((error) => {
+        console.error('Failed to enrich merged replay analytics', error);
       });
     } catch (e) {
       blobURLs.forEach((url) => URL.revokeObjectURL(url));

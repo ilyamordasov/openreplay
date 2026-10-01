@@ -164,6 +164,21 @@ export interface ISession {
     targetEndTs: number;
     durationMs: number;
   }>;
+  stitchedStats?: {
+    sessionCount: number;
+    clickCount: number;
+    misclickCount: number;
+    sessions: Array<{
+      sessionId: string;
+      index: number;
+      clickCount: number;
+      misclickCount: number;
+      share: number;
+      targetStartTs: number;
+      sourceStartTs: number;
+      sourceEndTs: number;
+    }>;
+  };
 }
 
 const emptyValues = {
@@ -211,6 +226,8 @@ export default class Session {
   stitchedSessionIds?: ISession['stitchedSessionIds'];
 
   stitchedSegments?: ISession['stitchedSegments'];
+
+  stitchedStats?: ISession['stitchedStats'];
 
   startedAt: ISession['startedAt'];
 

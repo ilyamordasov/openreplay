@@ -102,6 +102,10 @@ func (f *testFiles) WriteSessionArchive(_ uint64, w io.Writer) error {
 	return f.afterWriteErr
 }
 
+func (f *testFiles) WriteStitchedSessionArchive(_ []uint64, w io.Writer) error {
+	return f.WriteSessionArchive(0, w)
+}
+
 func applicationDownloadRequest(projectID, sessionID string) *http.Request {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	return mux.SetURLVars(req, map[string]string{

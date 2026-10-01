@@ -168,6 +168,7 @@ export interface ISession {
     sessionCount: number;
     clickCount: number;
     misclickCount: number;
+    analyticsComplete: boolean;
     sessions: Array<{
       sessionId: string;
       index: number;

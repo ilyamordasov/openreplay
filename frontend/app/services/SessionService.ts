@@ -38,7 +38,7 @@ export default class SettingsService {
   }
 
   getSessions(filter: any): Promise<{
-    sessions?: ISession[];
+    sessions: ISession[];
     groups?: Array<{
       groupId: string;
       startTs: number;

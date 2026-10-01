@@ -62,3 +62,21 @@ func TestGroupNearbySessionsFallsBackToAnonymousId(t *testing.T) {
 		t.Fatalf("expected matching anonymous id to group, got %d groups", len(groups))
 	}
 }
+
+
+func TestGroupNearbySessionsHonorsTwoHourBoundary(t *testing.T) {
+	const hour = uint64(60 * 60 * 1000)
+	sessions := []model.Session{
+		{SessionId: "a", UserId: "u1", StartTs: 10 * hour, Duration: uint32(hour)},
+		{SessionId: "b", UserId: "u1", StartTs: 13 * hour, Duration: uint32(10 * 60 * 1000)},
+		{SessionId: "c", UserId: "u1", StartTs: 15*hour + uint64(10*60*1000) + 1, Duration: uint32(10 * 60 * 1000)},
+	}
+
+	groups := groupNearbySessions(sessions, 120, "startTs", "asc")
+	if len(groups) != 2 {
+		t.Fatalf("expected exact 2h gap to group and >2h gap to split, got %d groups", len(groups))
+	}
+	if got := len(groups[0].Sessions); got != 2 {
+		t.Fatalf("expected first group to contain 2 sessions, got %d", got)
+	}
+}

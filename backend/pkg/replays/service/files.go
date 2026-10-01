@@ -25,6 +25,7 @@ type Files interface {
 	GetUnprocessedMobE(sessID uint64) (string, error)
 	GetUnprocessedDevtools(sessID uint64) (string, error)
 	WriteSessionArchive(sessID uint64, w io.Writer) error
+	WriteStitchedSessionArchive(sessIDs []uint64, w io.Writer) error
 }
 
 const (

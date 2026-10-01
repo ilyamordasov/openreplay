@@ -2,7 +2,7 @@ export const usageCode = `import { tracker } from '@openreplay/tracker';
 
 tracker.configure({
   projectKey: "PROJECT_KEY",
-  ingestPoint: "https://${window.location.hostname}/ingest",
+  ingestPoint: "https://d5dofp5kb7k6e2bmrfp7.7qsg961h.apigw.yandexcloud.net/ingest",
 });
 tracker.start()`;
 export const usageCodeSST = `import { tracker } from '@openreplay/tracker/cjs';
@@ -10,7 +10,7 @@ export const usageCodeSST = `import { tracker } from '@openreplay/tracker/cjs';
 
 tracker.configure({
   projectKey: "PROJECT_KEY",
-  ingestPoint: "https://${window.location.hostname}/ingest",
+  ingestPoint: "https://d5dofp5kb7k6e2bmrfp7.7qsg961h.apigw.yandexcloud.net/ingest",
 });
 
 function MyApp() {

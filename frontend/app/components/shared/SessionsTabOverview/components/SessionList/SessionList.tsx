@@ -104,6 +104,7 @@ function SessionList() {
     projectsStore;
   const { currentPage, activeTab, pageSize } = searchStore;
   const { groupByUser } = searchStore.instance;
+  const groupedView = groupByUser && !isBookmark;
   const { filters } = searchStore.instance;
   const _filterKeys = filters.map((i: any) => i.key);
   const hasUserFilter =
@@ -278,10 +279,10 @@ function SessionList() {
             }
             show={
               !loading &&
-              (groupByUser ? sessionGroups.length === 0 : list.length === 0)
+              (groupedView ? sessionGroups.length === 0 : list.length === 0)
             }
           >
-            {groupByUser
+            {groupedView
               ? sessionGroups.map((group: any) => (
                   <NearbySessionGroup
                     key={group.groupId}
@@ -321,11 +322,11 @@ function SessionList() {
                 {t('to')}{' '}
                 <span className="font-medium">
                   {(currentPage - 1) * pageSize +
-                    (groupByUser ? sessionGroups.length : list.length)}
+                    (groupedView ? sessionGroups.length : list.length)}
                 </span>{' '}
                 {t('of')}{' '}
                 <span className="font-medium">{numberWithCommas(total)}</span>{' '}
-                {groupByUser ? t('groups.') : t('sessions.')}
+                {groupedView ? t('groups.') : t('sessions.')}
               </div>
               <Pagination
                 page={currentPage}

@@ -1,4 +1,12 @@
 {
+  "Group stats": "Статистика группы",
+  "Misclick": "Миссклик",
+  "Misclicks": "Миссклики",
+  "Misclick rate": "Доля мисскликов",
+  "Click distribution": "Распределение кликов",
+  "clicks": "кликов",
+  "misclicks": "мисскликов",
+  "Some session analytics could not be loaded": "Часть аналитики сессий не удалось загрузить",
   "Merged replay": "Объединённая запись",
   "Play merged": "Воспроизвести вместе",
   "Export sessions": "Экспортировать сессии",

@@ -1,4 +1,8 @@
 {
+  "Group nearby · 2h": "Agrupar cercanas · 2 h",
+  "Group sessions from the same user when the gap between them is at most 2 hours": "Agrupar sesiones del mismo usuario cuando el intervalo entre ellas sea de 2 horas o menos",
+  "groups.": "grupos.",
+  "min": "min",
   "15 minutes": "15 minutos",
   "30 minutes": "30 minutos",
   "1 hour": "1 hora",

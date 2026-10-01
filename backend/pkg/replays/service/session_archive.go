@@ -36,16 +36,26 @@ type sessionArchiveManifest struct {
 	Files     []string `json:"files"`
 }
 
+type stitchedSessionArchiveSegment struct {
+	SessionID     string `json:"sessionId"`
+	SourceStartTs uint64 `json:"sourceStartTs"`
+	SourceEndTs   uint64 `json:"sourceEndTs"`
+	TargetStartTs uint64 `json:"targetStartTs"`
+	TargetEndTs   uint64 `json:"targetEndTs"`
+	DurationMs    uint64 `json:"durationMs"`
+}
+
 type stitchedSessionArchiveManifest struct {
-	Format           string   `json:"format"`
-	Version          int      `json:"version"`
-	SessionID        string   `json:"sessionId"`
-	SourceSessionIDs []string `json:"sourceSessionIds"`
-	Files            []string `json:"files"`
-	StartTs          uint64   `json:"startTs"`
-	EndTs            uint64   `json:"endTs"`
-	DurationMs       uint64   `json:"durationMs"`
-	Gaps             string   `json:"gaps"`
+	Format           string                          `json:"format"`
+	Version          int                             `json:"version"`
+	SessionID        string                          `json:"sessionId"`
+	SourceSessionIDs []string                        `json:"sourceSessionIds"`
+	Files            []string                        `json:"files"`
+	StartTs          uint64                          `json:"startTs"`
+	EndTs            uint64                          `json:"endTs"`
+	DurationMs       uint64                          `json:"durationMs"`
+	Gaps             string                          `json:"gaps"`
+	Segments         []stitchedSessionArchiveSegment `json:"segments"`
 }
 
 func (f *filesImpl) discoverSessionArchiveObjects(sessID uint64, sid string) ([]sessionArchiveObject, error) {
@@ -312,6 +322,18 @@ func (f *filesImpl) WriteStitchedSessionArchive(sessIDs []uint64, w io.Writer) e
 		files = append(files, "raw/devtools.mob")
 	}
 
+	segments := make([]stitchedSessionArchiveSegment, len(plan))
+	for i, segment := range plan {
+		segments[i] = stitchedSessionArchiveSegment{
+			SessionID:     sourceIDs[i],
+			SourceStartTs: segment.SourceStart,
+			SourceEndTs:   segment.SourceEnd,
+			TargetStartTs: segment.TargetStart,
+			TargetEndTs:   segment.TargetEnd,
+			DurationMs:    segment.TargetEnd - segment.TargetStart,
+		}
+	}
+
 	manifest := stitchedSessionArchiveManifest{
 		Format:           "openreplay-stitched-session-export",
 		Version:          1,
@@ -322,6 +344,7 @@ func (f *filesImpl) WriteStitchedSessionArchive(sessIDs []uint64, w io.Writer) e
 		EndTs:            plan[len(plan)-1].TargetEnd,
 		DurationMs:       plan[len(plan)-1].TargetEnd - plan[0].TargetStart,
 		Gaps:             "compacted",
+		Segments:         segments,
 	}
 	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {

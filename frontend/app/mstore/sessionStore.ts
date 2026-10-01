@@ -408,6 +408,7 @@ export default class SessionStore {
         audio: undefined,
         isStitched: true,
         stitchedSessionIds: [...sessionIds],
+        stitchedSegments: stitched.manifest.segments,
       };
 
       runInAction(() => {

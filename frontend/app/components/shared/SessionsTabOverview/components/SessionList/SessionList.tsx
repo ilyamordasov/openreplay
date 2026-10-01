@@ -66,8 +66,8 @@ function NearbySessionGroup({
         </div>
         <div className="text-sm text-neutral-500 whitespace-nowrap">
           {sessions.length}{' '}
-          {sessions.length === 1 ? t('session') : t('sessions')} · {totalMinutes}
-          {t('m')}
+          {sessions.length === 1 ? t('Session') : t('sessions')} · {totalMinutes}{' '}
+          {t('min')}
         </div>
       </button>
 

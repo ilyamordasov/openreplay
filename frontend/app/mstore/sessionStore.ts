@@ -391,6 +391,45 @@ export default class SessionStore {
     return segment.targetStartTs + (sourceTs - segment.sourceStartTs);
   };
 
+  shiftStitchedRecord = (
+    record: Record<string, any>,
+    segment: {
+      sessionId: string;
+      sourceStartTs: number;
+      sourceEndTs: number;
+      targetStartTs: number;
+      targetEndTs: number;
+    },
+  ) => {
+    const shifted = {
+      ...record,
+      sourceSessionId: segment.sessionId,
+    };
+
+    const shiftField = (key: string) => {
+      const value = Number(record[key]);
+      if (Number.isFinite(value) && value > 0) {
+        shifted[key] = this.mapStitchedTimestamp(value, segment);
+      }
+    };
+
+    shiftField('timestamp');
+    shiftField('startTime');
+    shiftField('endTime');
+    shiftField('startedAt');
+
+    if (record.createdAt) {
+      const createdAt = Date.parse(record.createdAt);
+      if (Number.isFinite(createdAt)) {
+        shifted.createdAt = new Date(
+          this.mapStitchedTimestamp(createdAt, segment),
+        ).toISOString();
+      }
+    }
+
+    return shifted;
+  };
+
   fetchStitchedAnalytics = async (
     sessionIds: string[],
     segments: Array<{
@@ -402,7 +441,9 @@ export default class SessionStore {
       durationMs: number;
     }>,
   ) => {
-    const bySession = new Map(segments.map((segment) => [segment.sessionId, segment]));
+    const bySession = new Map(
+      segments.map((segment) => [segment.sessionId, segment]),
+    );
     const results = new Map<string, any>();
     let analyticsComplete = true;
 
@@ -421,7 +462,11 @@ export default class SessionStore {
             return [sessionId, data] as const;
           } catch (error) {
             analyticsComplete = false;
-            console.error('Failed to fetch stitched session analytics', sessionId, error);
+            console.error(
+              'Failed to fetch stitched session analytics',
+              sessionId,
+              error,
+            );
             return [sessionId, null] as const;
           }
         }),
@@ -429,75 +474,93 @@ export default class SessionStore {
       chunkResults.forEach(([sessionId, data]) => results.set(sessionId, data));
     }
 
-    const shiftedIssues: any[] = [];
+    const mergedEvents: any[] = [];
+    const mergedErrors: any[] = [];
+    const mergedIssues: any[] = [];
+    const mergedUserEvents: any[] = [];
+    const mergedIncidents: any[] = [];
+
     const sessionStats: Array<{
       sessionId: string;
       index: number;
+      eventCount: number;
       clickCount: number;
       misclickCount: number;
+      clickRageCount: number;
       share: number;
       targetStartTs: number;
       sourceStartTs: number;
       sourceEndTs: number;
     }> = [];
 
+    let eventCount = 0;
     let clickCount = 0;
     let misclickCount = 0;
+    let clickRageCount = 0;
 
     sessionIds.forEach((sessionId, index) => {
       const segment = bySession.get(sessionId);
       const data = results.get(sessionId);
       const rawEvents = data?.events ?? [];
+      const rawErrors = data?.errors ?? [];
       const rawIssues = data?.issues ?? [];
+      const rawUserEvents = data?.userEvents ?? [];
+      const rawIncidents = data?.incidents ?? [];
+
+      const normalizedIssues = rawIssues.map((issue: any) => ({
+        ...issue,
+        // Go events API serializes this field as "issueType", while the
+        // frontend Issue model uses "type".
+        type: issue.type ?? issue.issueType,
+      }));
 
       const sessionClicks = rawEvents
-        .filter((event: any) => event.type === 'CLICK' || event.type === 'CLICKRAGE')
+        .filter(
+          (event: any) =>
+            event.type === 'CLICK' || event.type === 'CLICKRAGE',
+        )
         .reduce(
           (sum: number, event: any) =>
             sum + Math.max(1, Number(event.count) || 1),
           0,
         );
-      const normalizedIssues = rawIssues.map((issue: any) => ({
-        ...issue,
-        // Go events API serializes this field as "issueType", while the
-        // frontend Issue model uses "type". Accept both so merged analytics
-        // sees the same dead-click issues as an ordinary session replay.
-        type: issue.type ?? issue.issueType,
-      }));
       const sessionMisclicks = normalizedIssues.filter(
         (issue: any) => issue.type === 'dead_click',
       ).length;
+      const sessionClickRage = normalizedIssues.filter(
+        (issue: any) => issue.type === 'click_rage',
+      ).length;
 
+      eventCount += rawEvents.length + rawUserEvents.length;
       clickCount += sessionClicks;
       misclickCount += sessionMisclicks;
+      clickRageCount += sessionClickRage;
 
       if (segment) {
-        normalizedIssues.forEach((issue: any) => {
-          const rawTimestamp =
-            Number(issue.timestamp) ||
-            Number(issue.startedAt) ||
-            (Number.isFinite(Number(issue.time))
-              ? segment.sourceStartTs + Number(issue.time)
-              : segment.sourceStartTs);
-          const targetTimestamp = this.mapStitchedTimestamp(
-            rawTimestamp,
-            segment,
-          );
-          shiftedIssues.push({
-            ...issue,
-            timestamp: targetTimestamp,
-            startedAt: segment.targetStartTs,
-            sessionId,
-            sourceSessionId: sessionId,
-          });
-        });
+        rawEvents.forEach((event: any) =>
+          mergedEvents.push(this.shiftStitchedRecord(event, segment)),
+        );
+        rawErrors.forEach((error: any) =>
+          mergedErrors.push(this.shiftStitchedRecord(error, segment)),
+        );
+        normalizedIssues.forEach((issue: any) =>
+          mergedIssues.push(this.shiftStitchedRecord(issue, segment)),
+        );
+        rawUserEvents.forEach((event: any) =>
+          mergedUserEvents.push(this.shiftStitchedRecord(event, segment)),
+        );
+        rawIncidents.forEach((incident: any) =>
+          mergedIncidents.push(this.shiftStitchedRecord(incident, segment)),
+        );
       }
 
       sessionStats.push({
         sessionId,
         index,
+        eventCount: rawEvents.length + rawUserEvents.length,
         clickCount: sessionClicks,
         misclickCount: sessionMisclicks,
+        clickRageCount: sessionClickRage,
         share: 0,
         targetStartTs: segment?.targetStartTs ?? 0,
         sourceStartTs: segment?.sourceStartTs ?? 0,
@@ -509,12 +572,33 @@ export default class SessionStore {
       session.share = clickCount > 0 ? session.clickCount / clickCount : 0;
     });
 
+    const byTimestamp = (a: any, b: any) =>
+      Number(a.timestamp ?? a.startTime ?? 0) -
+      Number(b.timestamp ?? b.startTime ?? 0);
+
+    mergedEvents.sort(byTimestamp);
+    mergedErrors.sort(byTimestamp);
+    mergedIssues.sort(byTimestamp);
+    mergedUserEvents.sort(byTimestamp);
+    mergedIncidents.sort(byTimestamp);
+
     return {
-      issues: shiftedIssues,
+      eventsData: {
+        events: mergedEvents,
+        errors: mergedErrors,
+        issues: mergedIssues,
+        userEvents: mergedUserEvents,
+        incidents: mergedIncidents,
+        crashes: [],
+        resources: [],
+        stackEvents: [],
+      },
       stats: {
         sessionCount: sessionIds.length,
+        eventCount,
         clickCount,
         misclickCount,
+        clickRageCount,
         analyticsComplete,
         sessions: sessionStats,
       },
@@ -579,18 +663,13 @@ export default class SessionStore {
           );
         if (!stillCurrent) return;
 
-        const enrichedSession = new Session({
-          ...data,
-          stitchedStats: analytics.stats,
-        }).addEvents(
-          [],
-          [],
-          [],
-          analytics.issues,
-          [],
-          [],
-          [],
-          [],
+        const enrichedSession = await this.addSessionEvents(
+          {
+            ...data,
+            stitchedStats: analytics.stats,
+          },
+          false,
+          analytics.eventsData,
         );
 
         runInAction(() => {
@@ -630,13 +709,21 @@ export default class SessionStore {
     }
   };
 
-  addSessionEvents = async (sessionData, isLive = false) => {
+  addSessionEvents = async (
+    sessionData,
+    isLive = false,
+    providedEventsData?: Record<string, any[]>,
+  ) => {
     const session = new Session(sessionData);
     const filter = isLive ? searchStoreLive.instance : searchStore.instance;
 
-    const eventsData: Record<string, any[]> = {};
+    const eventsData: Record<string, any[]> = providedEventsData
+      ? { ...providedEventsData }
+      : {};
     try {
-      const evData = isLive
+      const evData = providedEventsData
+        ? providedEventsData
+        : isLive
         ? {
             errors: [],
             events: [],
@@ -652,7 +739,7 @@ export default class SessionStore {
 
       Object.assign(eventsData, {
         ...evData,
-        events: evData.events.map((e) => ({
+        events: (evData.events ?? []).map((e) => ({
           ...e,
           isHighlighted: searchStore.instance.filters.length
             ? checkEventWithFilters(e, searchStore.instance.filters)

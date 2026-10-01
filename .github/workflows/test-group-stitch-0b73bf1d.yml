@@ -1,0 +1,38 @@
+name: Test grouped session stitching 0b73bf1d
+
+on:
+  push:
+    branches:
+      - ops/test-group-stitch-0b73bf1d
+    paths:
+      - .github/workflows/test-group-stitch-0b73bf1d.yml
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: 0b73bf1dd422f47522a1806b49b9d248c199baee
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact feature source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Run focused Go tests
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          go test ./pkg/messages
+          go test ./pkg/replays/service
+          go test ./pkg/replays/api
+          go test ./pkg/analytics/search

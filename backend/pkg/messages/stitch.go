@@ -352,7 +352,6 @@ func encodeCanonicalReplay(segments [][]Message, plan []StitchSegment) ([]byte, 
 
 func BuildStitchPlan(segments [][]Message) ([]StitchSegment, error) {
 	plan := make([]StitchSegment, 0, len(segments))
-	var previousSourceEnd uint64
 	var previousTargetEnd uint64
 
 	for i, segment := range segments {
@@ -363,15 +362,10 @@ func BuildStitchPlan(segments [][]Message) ([]StitchSegment, error) {
 
 		targetStart := sourceStart
 		if i > 0 {
-			if sourceStart > previousSourceEnd {
-				// Preserve the real pause between source sessions exactly.
-				gap := sourceStart - previousSourceEnd
-				targetStart = previousTargetEnd + gap
-			} else {
-				// Overlapping source sessions cannot be represented by one DOM
-				// replay simultaneously, so serialize only the overlap boundary.
-				targetStart = previousTargetEnd + 1
-			}
+			// A merged replay is a compacted synthetic timeline: wall-clock gaps
+			// between source sessions are intentionally removed. Keep only a 1ms
+			// boundary so the next document/session can initialize cleanly.
+			targetStart = previousTargetEnd + 1
 		}
 
 		shift := int64(targetStart) - int64(sourceStart)
@@ -383,7 +377,6 @@ func BuildStitchPlan(segments [][]Message) ([]StitchSegment, error) {
 			TargetEnd:   targetEnd,
 			Shift:       shift,
 		})
-		previousSourceEnd = sourceEnd
 		previousTargetEnd = targetEnd
 	}
 	return plan, nil

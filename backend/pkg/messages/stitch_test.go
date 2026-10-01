@@ -31,7 +31,7 @@ func replayTimestamps(t *testing.T, data []byte) []uint64 {
 	return timestamps
 }
 
-func TestStitchReplayStreamsPreservesSessionGapInSingleTimeline(t *testing.T) {
+func TestStitchReplayStreamsCompactsSessionGapInSingleTimeline(t *testing.T) {
 	first := testIndexedReplay(
 		&Timestamp{Timestamp: 1_000},
 		&SessionStart{Timestamp: 1_000, UserUUID: "fp-a"},
@@ -57,12 +57,12 @@ func TestStitchReplayStreamsPreservesSessionGapInSingleTimeline(t *testing.T) {
 	if plan[0].TargetStart != 1_000 || plan[0].TargetEnd != 2_000 {
 		t.Fatalf("first plan = %#v", plan[0])
 	}
-	if plan[1].TargetStart != 10_000 || plan[1].TargetEnd != 10_500 {
+	if plan[1].TargetStart != 2_001 || plan[1].TargetEnd != 2_501 {
 		t.Fatalf("second plan = %#v", plan[1])
 	}
 
 	got := replayTimestamps(t, stitched)
-	want := []uint64{1_000, 2_000, 10_000, 10_500}
+	want := []uint64{1_000, 2_000, 2_001, 2_501}
 	if len(got) != len(want) {
 		t.Fatalf("timestamps = %#v, want %#v", got, want)
 	}
@@ -240,7 +240,7 @@ func TestStitchReplayStreamsKeepsSingleSyntheticSessionLifecycle(t *testing.T) {
 }
 
 
-func TestBuildStitchPlanSerializesOnlyOverlappingSourceSessions(t *testing.T) {
+func TestBuildStitchPlanCompactsOverlappingSourceSessions(t *testing.T) {
 	first := []Message{
 		&Timestamp{Timestamp: 1_000},
 		&Timestamp{Timestamp: 2_000},

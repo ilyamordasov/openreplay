@@ -1,4 +1,6 @@
 {
+  "Export sessions": "세션 내보내기",
+  "Failed to export sessions": "세션을 내보내지 못했습니다",
   "Group nearby · 2h": "근접 세션 그룹화 · 2시간",
   "Group sessions from the same user when the gap between them is at most 2 hours": "동일 사용자의 세션 간격이 2시간 이하인 경우 그룹화합니다",
   "groups.": "그룹",

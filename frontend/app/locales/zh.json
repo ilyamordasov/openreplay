@@ -1,4 +1,12 @@
 {
+  "Group stats": "分组统计",
+  "Misclick": "误点击",
+  "Misclicks": "误点击",
+  "Misclick rate": "误点击率",
+  "Click distribution": "点击分布",
+  "clicks": "次点击",
+  "misclicks": "次误点击",
+  "Some session analytics could not be loaded": "部分会话分析数据无法加载",
   "Merged replay": "合并回放",
   "Play merged": "播放合并会话",
   "Export sessions": "导出会话",

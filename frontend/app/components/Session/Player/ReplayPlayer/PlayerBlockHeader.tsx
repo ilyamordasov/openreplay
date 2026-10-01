@@ -171,25 +171,27 @@ function PlayerBlockHeader(props: any) {
           </div>
         ) : null}
       </div>
-      <div
-        className="px-2 relative hidden lg:block"
-        style={{ minWidth: activeTab === 'EXPORT' ? '360px' : '270px' }}
-      >
-        <Tabs
-          tabs={TABS}
-          active={activeTab}
-          onClick={(tab) => {
-            if (activeTab === tab) {
-              setActiveTab('');
-              player.toggleEvents();
-            } else {
-              setActiveTab(tab);
-              !showEvents && player.toggleEvents();
-            }
-          }}
-          border={false}
-        />
-      </div>
+      {!session.isStitched ? (
+        <div
+          className="px-2 relative hidden lg:block"
+          style={{ minWidth: activeTab === 'EXPORT' ? '360px' : '270px' }}
+        >
+          <Tabs
+            tabs={TABS}
+            active={activeTab}
+            onClick={(tab) => {
+              if (activeTab === tab) {
+                setActiveTab('');
+                player.toggleEvents();
+              } else {
+                setActiveTab(tab);
+                !showEvents && player.toggleEvents();
+              }
+            }}
+            border={false}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -82,6 +82,44 @@ export default class SettingsService {
     URL.revokeObjectURL(url);
   }
 
+  async downloadSessionGroup(sessionIds: string[]): Promise<void> {
+    if (sessionIds.length === 0) {
+      throw new Error('No sessions to export');
+    }
+    const response = await this.client.post('/sessions/download', {
+      sessionIds,
+    });
+    if (!response.ok) {
+      let message = 'Failed to export sessions';
+      try {
+        const payload = await response.json();
+        message =
+          payload?.errors?.[0] ||
+          payload?.error ||
+          payload?.message ||
+          message;
+      } catch {
+        // Keep the generic message when the API response is not JSON.
+      }
+      throw new Error(message);
+    }
+
+    const blob = await response.blob();
+    const contentDisposition = response.headers.get('Content-Disposition');
+    const filenameMatch = contentDisposition?.match(/filename="?([^";]+)"?/i);
+    const filename =
+      filenameMatch?.[1] ||
+      `openreplay-stitched-${sessionIds[0]}-${sessionIds.length}.zip`;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   getRecommendedSessions(sort?: any): Promise<{
     sessions: ISession[];
     total: number;

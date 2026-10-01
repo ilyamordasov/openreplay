@@ -8,9 +8,66 @@ import { getTimelinePosition } from './getTimelinePosition';
 import { useStore } from '@/mstore';
 import { getTimelineEventWidth } from './getTimelineEventWidth';
 import { Tooltip } from 'antd';
+import { types as issueTypes } from 'Types/session/issue';
+import { useTranslation } from 'react-i18next';
+
+function MisclickMarkers({
+  scale,
+  jump,
+}: {
+  scale: number;
+  jump: (time: number) => void;
+}) {
+  const { t } = useTranslation();
+  const { sessionStore } = useStore();
+  const misclicks =
+    sessionStore.current.issues?.filter(
+      (issue) =>
+        issue.type === issueTypes.DEAD_CLICK &&
+        Number.isFinite(Number(issue.time)),
+    ) ?? [];
+
+  return (
+    <>
+      {misclicks.map((issue, index) => {
+        const time = Number(issue.time);
+        return (
+          <Tooltip
+            key={`misclick-${issue.issueId || issue.messageId || index}-${time}`}
+            title={
+              <div className="text-xs">
+                <div>{t('Misclick')}</div>
+                {issue.contextString ? (
+                  <div className="opacity-70 max-w-[260px] truncate">
+                    {issue.contextString}
+                  </div>
+                ) : null}
+              </div>
+            }
+          >
+            <button
+              type="button"
+              className="absolute w-[3px] h-[14px] z-[96] bg-[#ff3b30] rounded-sm border-0 p-0 cursor-pointer"
+              style={{
+                left: `${getTimelinePosition(time, scale)}%`,
+                top: '-2px',
+                marginLeft: '-1px',
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                jump(time);
+              }}
+              aria-label={t('Misclick')}
+            />
+          </Tooltip>
+        );
+      })}
+    </>
+  );
+}
 
 function EventsList() {
-  const { store } = useContext(PlayerContext);
+  const { player, store } = useContext(PlayerContext);
   const { uiPlayerStore, sessionStore } = useStore();
   const { eventCount, endTime, tabStates, sessionStart } = store.get();
   const { incidents } = sessionStore.current;
@@ -38,6 +95,7 @@ function EventsList() {
   }, [eventCount]);
   return (
     <>
+      <MisclickMarkers scale={scale} jump={player.jump} />
       {events.map((e) => (
         <div
           /* @ts-ignore TODO */
@@ -46,6 +104,7 @@ function EventsList() {
           style={{ left: `${getTimelinePosition(e.time, scale)}%` }}
         />
       ))}
+      <MisclickMarkers scale={scale} jump={player.jump} />
       {incidents?.map((i) => {
         const width = getTimelineEventWidth(
           endTime,
@@ -70,7 +129,7 @@ function EventsList() {
 }
 
 function MobileEventsList() {
-  const { store } = useContext(MobilePlayerContext);
+  const { player, store } = useContext(MobilePlayerContext);
   const { eventList, endTime } = store.get();
   const events = eventList.filter((e) => e.type !== 'SWIPE');
 

@@ -318,24 +318,29 @@ func groupNearbySessions(sessions []model.Session, windowMinutes int, sortBy, or
 
 	desc := !strings.EqualFold(order, "asc")
 	sort.SliceStable(groups, func(i, j int) bool {
-		var less bool
 		if sortBy == "eventsCount" {
-			if groups[i].EventsCount == groups[j].EventsCount {
-				less = groups[i].EndTs < groups[j].EndTs
-			} else {
-				less = groups[i].EventsCount < groups[j].EventsCount
+			if groups[i].EventsCount != groups[j].EventsCount {
+				if desc {
+					return groups[i].EventsCount > groups[j].EventsCount
+				}
+				return groups[i].EventsCount < groups[j].EventsCount
 			}
-		} else {
 			if desc {
-				less = groups[i].EndTs < groups[j].EndTs
-			} else {
-				less = groups[i].StartTs < groups[j].StartTs
+				return groups[i].EndTs > groups[j].EndTs
 			}
+			return groups[i].StartTs < groups[j].StartTs
 		}
+
 		if desc {
-			return !less && (groups[i].EventsCount != groups[j].EventsCount || groups[i].EndTs != groups[j].EndTs)
+			if groups[i].EndTs != groups[j].EndTs {
+				return groups[i].EndTs > groups[j].EndTs
+			}
+			return groups[i].StartTs > groups[j].StartTs
 		}
-		return less
+		if groups[i].StartTs != groups[j].StartTs {
+			return groups[i].StartTs < groups[j].StartTs
+		}
+		return groups[i].EndTs < groups[j].EndTs
 	})
 
 	if desc {
@@ -365,7 +370,7 @@ func (s *searchImpl) getGroupedSessions(projectId int, userId uint64, req *model
 		strings.Join(qc.sessionsWhere, " AND "),
 		"s.datetime",
 		"ASC",
-		int(^uint(0)>>1),
+		2147483647,
 		0,
 	)
 

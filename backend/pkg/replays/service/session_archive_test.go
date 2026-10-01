@@ -221,6 +221,21 @@ func TestWriteStitchedSessionArchiveCreatesOneCompactedReplay(t *testing.T) {
 	if manifest.StartTs != 1_000 || manifest.EndTs != 2_501 || manifest.DurationMs != 1_501 {
 		t.Fatalf("stitched timeline = start:%d end:%d duration:%d", manifest.StartTs, manifest.EndTs, manifest.DurationMs)
 	}
+	if len(manifest.Segments) != 2 {
+		t.Fatalf("segments = %#v, want 2", manifest.Segments)
+	}
+	if manifest.Segments[0].SessionID != "101" ||
+		manifest.Segments[0].SourceStartTs != 1_000 ||
+		manifest.Segments[0].TargetStartTs != 1_000 ||
+		manifest.Segments[0].TargetEndTs != 2_000 {
+		t.Fatalf("first segment = %#v", manifest.Segments[0])
+	}
+	if manifest.Segments[1].SessionID != "102" ||
+		manifest.Segments[1].SourceStartTs != 10_000 ||
+		manifest.Segments[1].TargetStartTs != 2_001 ||
+		manifest.Segments[1].TargetEndTs != 2_501 {
+		t.Fatalf("second segment = %#v", manifest.Segments[1])
+	}
 
 	decoded, err := messages.DecodeReplayStream(archiveFiles["raw/dom.mobs"])
 	if err != nil {

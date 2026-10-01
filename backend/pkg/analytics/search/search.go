@@ -8,6 +8,7 @@ import (
 	"openreplay/backend/pkg/db/postgres/pool"
 	"sort"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -84,6 +85,20 @@ FROM experimental.sessions AS s
 WHERE %s
 ORDER BY %s %s
 LIMIT %d OFFSET %d;`
+	groupedSessionsSourceQuery = `
+SELECT DISTINCT ON (session_id)
+	toString(s.session_id) AS session_id,
+	toUInt64(toUnixTimestamp(s.datetime)*1000) AS start_ts,
+	s.duration,
+	s.user_id,
+	s.user_uuid,
+	s.user_anonymous_id,
+	greatest(s.events_count,1) AS events_count
+FROM experimental.sessions AS s
+	%s
+	%s
+WHERE %s
+ORDER BY s.datetime ASC;`
 	viewedSessionsJoinTemplate = `ANY LEFT JOIN (
 	SELECT DISTINCT session_id
 	FROM experimental.user_viewed_sessions
@@ -352,54 +367,130 @@ func groupNearbySessions(sessions []model.Session, windowMinutes int, sortBy, or
 	return groups
 }
 
+func groupPage(groups []model.SessionGroup, page, limit int) ([]model.SessionGroup, int) {
+	total := len(groups)
+	start := (page - 1) * limit
+	if start < 0 {
+		start = 0
+	}
+	if start > total {
+		start = total
+	}
+	end := start + limit
+	if end > total {
+		end = total
+	}
+	return groups[start:end], total
+}
+
+func groupSessionIDs(groups []model.SessionGroup) ([]uint64, error) {
+	ids := make([]uint64, 0)
+	for _, group := range groups {
+		for _, session := range group.Sessions {
+			id, err := strconv.ParseUint(session.SessionId, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid session id %q: %w", session.SessionId, err)
+			}
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
+func hydrateSessionGroups(groups []model.SessionGroup, sessions []model.Session) []model.SessionGroup {
+	byID := make(map[string]model.Session, len(sessions))
+	for _, session := range sessions {
+		byID[session.SessionId] = session
+	}
+	for gi := range groups {
+		for si := range groups[gi].Sessions {
+			if session, ok := byID[groups[gi].Sessions[si].SessionId]; ok {
+				groups[gi].Sessions[si] = session
+			}
+		}
+	}
+	return groups
+}
+
 func (s *searchImpl) getGroupedSessions(projectId int, userId uint64, req *model.SessionsSearchRequest) (*model.GetSessionsResponse, error) {
 	qc := s.buildSessionsQueryComponents(projectId, userId, req)
+
+	// Phase 1 intentionally selects only fields needed to group and sort. This
+	// keeps wide metadata/device rows out of the all-matching-sessions scan.
+	sourceQuery := fmt.Sprintf(groupedSessionsSourceQuery,
+		qc.eventsInnerJoin,
+		qc.leftAntiJoin,
+		strings.Join(qc.sessionsWhere, " AND "),
+	)
+
+	lightSessions := make([]model.Session, 0)
+	started := time.Now()
+	if err := s.chConn.Select(context.Background(), &lightSessions, sourceQuery); err != nil {
+		s.Logger.Warn(context.Background(), "Error executing grouped sessions source query: %s\nQuery: %s", err, sourceQuery)
+		return nil, err
+	}
+	if time.Since(started) > 2*time.Second {
+		s.Logger.Warn(context.Background(), "Slow grouped sessions source select: %s", sourceQuery)
+	}
+
+	allGroups := groupNearbySessions(lightSessions, req.GroupWindowMinutes, req.Sort, req.Order)
+	pageGroups, total := groupPage(allGroups, req.Page, req.Limit)
+	if len(pageGroups) == 0 {
+		return &model.GetSessionsResponse{
+			Total:    uint64(total),
+			Sessions: make([]model.Session, 0),
+			Groups:   make([]model.SessionGroup, 0),
+		}, nil
+	}
+
+	// Phase 2 hydrates only members of groups visible on the current page.
+	ids, err := groupSessionIDs(pageGroups)
+	if err != nil {
+		return nil, err
+	}
+	idParts := make([]string, len(ids))
+	for i, id := range ids {
+		idParts[i] = strconv.FormatUint(id, 10)
+	}
+
 	metasMap := s.getMetadataColumns(projectId)
 	metas := ""
 	if len(metasMap) > 0 {
 		metas = "," + strings.Join(slices.Collect(maps.Keys(metasMap)), ",")
 	}
-
-	// Grouping must happen before pagination, so fetch the complete filtered
-	// result set for the selected date range and paginate groups afterwards.
-	query := fmt.Sprintf(sessionsQuery,
+	detailsWhere := fmt.Sprintf(
+		"s.project_id = %d AND s.session_id IN (%s)",
+		projectId,
+		strings.Join(idParts, ","),
+	)
+	detailsQuery := fmt.Sprintf(sessionsQuery,
 		metas,
-		qc.eventsInnerJoin,
-		qc.leftAntiJoin,
+		"",
+		"",
 		qc.viewedJoin,
-		strings.Join(qc.sessionsWhere, " AND "),
+		detailsWhere,
 		"s.datetime",
 		"ASC",
-		2147483647,
+		len(ids),
 		0,
 	)
 
-	sessions := make([]model.Session, 0)
-	started := time.Now()
-	if err := s.chConn.Select(context.Background(), &sessions, query); err != nil {
-		s.Logger.Warn(context.Background(), "Error executing grouped sessions source query: %s\nQuery: %s", err, query)
+	fullSessions := make([]model.Session, 0, len(ids))
+	detailsStarted := time.Now()
+	if err := s.chConn.Select(context.Background(), &fullSessions, detailsQuery); err != nil {
+		s.Logger.Warn(context.Background(), "Error hydrating grouped session page: %s\nQuery: %s", err, detailsQuery)
 		return nil, err
 	}
-	if time.Since(started) > 2*time.Second {
-		s.Logger.Warn(context.Background(), "Slow grouped sessions source select: %s", query)
+	if time.Since(detailsStarted) > 2*time.Second {
+		s.Logger.Warn(context.Background(), "Slow grouped session hydration select: %s", detailsQuery)
 	}
-	processSessionsMetadata(sessions, metasMap)
-
-	groups := groupNearbySessions(sessions, req.GroupWindowMinutes, req.Sort, req.Order)
-	total := len(groups)
-	start := (req.Page - 1) * req.Limit
-	if start > total {
-		start = total
-	}
-	end := start + req.Limit
-	if end > total {
-		end = total
-	}
+	processSessionsMetadata(fullSessions, metasMap)
+	pageGroups = hydrateSessionGroups(pageGroups, fullSessions)
 
 	return &model.GetSessionsResponse{
 		Total:    uint64(total),
 		Sessions: make([]model.Session, 0),
-		Groups:   groups[start:end],
+		Groups:   pageGroups,
 	}, nil
 }
 

@@ -1,4 +1,12 @@
 {
+  "Group stats": "그룹 통계",
+  "Misclick": "오클릭",
+  "Misclicks": "오클릭",
+  "Misclick rate": "오클릭 비율",
+  "Click distribution": "클릭 분포",
+  "clicks": "클릭",
+  "misclicks": "오클릭",
+  "Some session analytics could not be loaded": "일부 세션 분석 데이터를 불러오지 못했습니다",
   "Merged replay": "병합 재생",
   "Play merged": "병합 재생",
   "Export sessions": "세션 내보내기",

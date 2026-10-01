@@ -13,6 +13,7 @@ import { observer } from 'mobx-react-lite';
 import { useStore } from 'App/mstore';
 import SessionDateRange from './SessionDateRange';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'react-toastify';
 
 type SessionStatus = {
   status: number;
@@ -38,6 +39,7 @@ function NearbySessionGroup({
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(true);
+  const [exporting, setExporting] = React.useState(false);
   const sessions = group.sessions ?? [];
   const first = sessions[0];
   const totalDurationMs = sessions.reduce(
@@ -46,30 +48,57 @@ function NearbySessionGroup({
   );
   const totalMinutes = Math.max(1, Math.round(totalDurationMs / 60000));
 
+  const exportGroup = async () => {
+    if (exporting || sessions.length === 0) return;
+    setExporting(true);
+    try {
+      const sessionIds = [...sessions]
+        .sort((a: any, b: any) => a.startedAt - b.startedAt)
+        .map((session: any) => String(session.sessionId));
+      await sessionService.downloadSessionGroup(sessionIds);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to export sessions'),
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="border-b">
-      <button
-        type="button"
-        className="w-full flex items-center gap-3 px-4 py-3 text-left bg-neutral-50 hover:bg-neutral-100"
-        onClick={() => setExpanded((value) => !value)}
-      >
-        <span className="text-neutral-500">
-          {expanded ? <DownOutlined /> : <RightOutlined />}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="font-medium truncate">
-            {first?.userDisplayName || t('Anonymous User')}
+      <div className="w-full flex items-center gap-3 px-4 py-3 bg-neutral-50 hover:bg-neutral-100">
+        <button
+          type="button"
+          className="min-w-0 flex flex-1 items-center gap-3 text-left"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <span className="text-neutral-500">
+            {expanded ? <DownOutlined /> : <RightOutlined />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="font-medium truncate">
+              {first?.userDisplayName || t('Anonymous User')}
+            </div>
+            <div className="text-xs text-neutral-500">
+              {formatGroupTime(group.startTs)} — {formatGroupTime(group.endTs)}
+            </div>
           </div>
-          <div className="text-xs text-neutral-500">
-            {formatGroupTime(group.startTs)} — {formatGroupTime(group.endTs)}
-          </div>
-        </div>
+        </button>
+        <Button
+          size="small"
+          loading={exporting}
+          disabled={exporting || sessions.length === 0}
+          onClick={() => void exportGroup()}
+        >
+          {t('Export sessions')}
+        </Button>
         <div className="text-sm text-neutral-500 whitespace-nowrap">
           {sessions.length}{' '}
           {sessions.length === 1 ? t('Session') : t('sessions')} · {totalMinutes}{' '}
           {t('min')}
         </div>
-      </button>
+      </div>
 
       {expanded
         ? sessions.map((session: any) => (

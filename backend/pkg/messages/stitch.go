@@ -319,6 +319,15 @@ func encodeCanonicalReplay(segments [][]Message, plan []StitchSegment) ([]byte, 
 			if message.TypeID() == MsgBatchMetadata || message.TypeID() == MsgMobileBatchMeta {
 				continue
 			}
+			// One stitched export is one synthetic session: preserve the first
+			// SessionStart and the last SessionEnd only. CreateDocument/page
+			// messages still reset DOM state between source sessions.
+			if segmentIndex > 0 && message.TypeID() == MsgSessionStart {
+				continue
+			}
+			if segmentIndex < len(segments)-1 && message.TypeID() == MsgSessionEnd {
+				continue
+			}
 			if err := shiftMessageTimestamps(message, plan[segmentIndex].Shift); err != nil {
 				return nil, fmt.Errorf("shift segment %d timestamp: %w", segmentIndex, err)
 			}

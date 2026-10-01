@@ -104,7 +104,6 @@ function EventsList() {
           style={{ left: `${getTimelinePosition(e.time, scale)}%` }}
         />
       ))}
-      <MisclickMarkers scale={scale} jump={player.jump} />
       {incidents?.map((i) => {
         const width = getTimelineEventWidth(
           endTime,

@@ -654,7 +654,7 @@ export default class SessionStore {
       void this.fetchStitchedAnalytics(
         sessionIds,
         stitched.manifest.segments,
-      ).then((analytics) => {
+      ).then(async (analytics) => {
         const stillCurrent =
           this.current.isStitched &&
           this.current.stitchedSessionIds?.length === sessionIds.length &&

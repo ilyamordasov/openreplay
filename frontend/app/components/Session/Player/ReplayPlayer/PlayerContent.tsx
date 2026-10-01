@@ -74,7 +74,7 @@ function PlayerContent({
       <div
         className="w-full h-full"
         style={
-          !fullscreen && session.isStitched
+          !fullscreen && session.isStitched && session.stitchedStats
             ? { maxWidth: 'calc(100% - 320px)' }
             : activeTab && !fullscreen
               ? {
@@ -91,7 +91,7 @@ function PlayerContent({
           />
         </div>
       </div>
-      {!fullscreen && session.isStitched ? (
+      {!fullscreen && session.isStitched && session.stitchedStats ? (
         <StitchedStatsPanel />
       ) : !fullscreen && activeTab !== '' ? (
         <RightBlock setActiveTab={setActiveTab} activeTab={activeTab} />

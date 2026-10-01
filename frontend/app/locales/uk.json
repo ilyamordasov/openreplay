@@ -1,4 +1,6 @@
 {
+  "Export sessions": "Експортувати сесії",
+  "Failed to export sessions": "Не вдалося експортувати сесії",
   "Group nearby · 2h": "Групувати поруч · 2 год",
   "Group sessions from the same user when the gap between them is at most 2 hours": "Групувати сесії одного користувача, якщо проміжок між ними не перевищує 2 годин",
   "groups.": "груп.",

@@ -156,6 +156,14 @@ export interface ISession {
   incidents?: Array<Incident>;
   isStitched?: boolean;
   stitchedSessionIds?: string[];
+  stitchedSegments?: Array<{
+    sessionId: string;
+    sourceStartTs: number;
+    sourceEndTs: number;
+    targetStartTs: number;
+    targetEndTs: number;
+    durationMs: number;
+  }>;
 }
 
 const emptyValues = {
@@ -201,6 +209,8 @@ export default class Session {
   isStitched?: ISession['isStitched'];
 
   stitchedSessionIds?: ISession['stitchedSessionIds'];
+
+  stitchedSegments?: ISession['stitchedSegments'];
 
   startedAt: ISession['startedAt'];
 

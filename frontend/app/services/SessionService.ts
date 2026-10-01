@@ -196,12 +196,52 @@ export default class SettingsService {
         durationMs: number;
       }>;
     };
+    const sourceIdsMatch =
+      Array.isArray(manifest.sourceSessionIds) &&
+      manifest.sourceSessionIds.length === sessionIds.length &&
+      manifest.sourceSessionIds.every(
+        (sessionId, index) => sessionId === sessionIds[index],
+      );
+    const segmentsMatch =
+      Array.isArray(manifest.segments) &&
+      manifest.segments.length === sessionIds.length &&
+      manifest.segments.every((segment, index) => {
+        const sourceStart = Number(segment.sourceStartTs);
+        const sourceEnd = Number(segment.sourceEndTs);
+        const targetStart = Number(segment.targetStartTs);
+        const targetEnd = Number(segment.targetEndTs);
+        const duration = Number(segment.durationMs);
+        const previous = index > 0 ? manifest.segments[index - 1] : undefined;
+
+        return (
+          segment.sessionId === sessionIds[index] &&
+          Number.isFinite(sourceStart) &&
+          Number.isFinite(sourceEnd) &&
+          Number.isFinite(targetStart) &&
+          Number.isFinite(targetEnd) &&
+          Number.isFinite(duration) &&
+          sourceEnd >= sourceStart &&
+          targetEnd >= targetStart &&
+          duration === targetEnd - targetStart &&
+          (!previous || targetStart > Number(previous.targetEndTs))
+        );
+      });
+    const timelineMatches =
+      Number.isFinite(Number(manifest.startTs)) &&
+      Number.isFinite(Number(manifest.endTs)) &&
+      Number.isFinite(Number(manifest.durationMs)) &&
+      manifest.endTs >= manifest.startTs &&
+      manifest.durationMs === manifest.endTs - manifest.startTs &&
+      manifest.segments[0]?.targetStartTs === manifest.startTs &&
+      manifest.segments[manifest.segments.length - 1]?.targetEndTs ===
+        manifest.endTs;
+
     if (
       manifest.format !== 'openreplay-stitched-session-export' ||
       manifest.version !== 1 ||
-      manifest.sourceSessionIds.length !== sessionIds.length ||
-      !Array.isArray(manifest.segments) ||
-      manifest.segments.length !== sessionIds.length
+      !sourceIdsMatch ||
+      !segmentsMatch ||
+      !timelineMatches
     ) {
       throw new Error('Merged session manifest is invalid');
     }

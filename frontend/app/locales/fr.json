@@ -1,4 +1,12 @@
 {
+  "Group stats": "Statistiques du groupe",
+  "Misclick": "Clic manqué",
+  "Misclicks": "Clics manqués",
+  "Misclick rate": "Taux de clics manqués",
+  "Click distribution": "Répartition des clics",
+  "clicks": "clics",
+  "misclicks": "clics manqués",
+  "Some session analytics could not be loaded": "Certaines données d’analyse des sessions n’ont pas pu être chargées",
   "Merged replay": "Lecture fusionnée",
   "Play merged": "Lire la fusion",
   "Export sessions": "Exporter les sessions",

@@ -397,8 +397,9 @@ func (s *searchImpl) getGroupedSessions(projectId int, userId uint64, req *model
 	}
 
 	return &model.GetSessionsResponse{
-		Total:  uint64(total),
-		Groups: groups[start:end],
+		Total:    uint64(total),
+		Sessions: make([]model.Session, 0),
+		Groups:   groups[start:end],
 	}, nil
 }
 

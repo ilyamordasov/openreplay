@@ -195,7 +195,7 @@ type SessionGroup struct {
 
 type GetSessionsResponse struct {
 	Total    uint64         `json:"total" ch:"count"`
-	Sessions []Session      `json:"sessions,omitempty" ch:"sessions"`
+	Sessions []Session      `json:"sessions" ch:"sessions"`
 	Groups   []SessionGroup `json:"groups,omitempty"`
 }
 

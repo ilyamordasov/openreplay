@@ -187,7 +187,7 @@ const ProjectCodeSnippet: React.FC<Props> = (props) => {
                 isAssistEnabled={isAssistEnabled}
                 host={site?.host}
                 projectKey={site?.projectKey!}
-                ingestPoint={`"https://${window.location.hostname}/ingest"`}
+                ingestPoint={`"https://d5dofp5kb7k6e2bmrfp7.7qsg961h.apigw.yandexcloud.net/ingest"`}
                 defaultInputMode={gdpr.defaultInputMode}
                 obscureTextNumbers={gdpr.maskNumbers}
                 obscureTextEmails={gdpr.maskEmails}

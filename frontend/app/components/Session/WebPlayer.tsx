@@ -272,7 +272,7 @@ function WebPlayer(props: any) {
           // @ts-ignore TODO?
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          tabs={isStitched ? { INSPECTOR: TABS.INSPECTOR } : TABS}
+          tabs={isStitched ? {} : TABS}
           fullscreen={fullscreen}
         />
       )}

@@ -375,6 +375,147 @@ export default class SessionStore {
     this.stitchedBlobURLs = [];
   };
 
+  mapStitchedTimestamp = (
+    timestamp: number,
+    segment: {
+      sourceStartTs: number;
+      sourceEndTs: number;
+      targetStartTs: number;
+      targetEndTs: number;
+    },
+  ) => {
+    const sourceTs = Math.min(
+      Math.max(timestamp, segment.sourceStartTs),
+      segment.sourceEndTs,
+    );
+    return segment.targetStartTs + (sourceTs - segment.sourceStartTs);
+  };
+
+  fetchStitchedAnalytics = async (
+    sessionIds: string[],
+    segments: Array<{
+      sessionId: string;
+      sourceStartTs: number;
+      sourceEndTs: number;
+      targetStartTs: number;
+      targetEndTs: number;
+      durationMs: number;
+    }>,
+  ) => {
+    const bySession = new Map(segments.map((segment) => [segment.sessionId, segment]));
+    const results = new Map<string, any>();
+    let analyticsComplete = true;
+
+    // Keep concurrent event requests bounded for unusually large two-hour groups.
+    const concurrency = 8;
+    for (let offset = 0; offset < sessionIds.length; offset += concurrency) {
+      const chunk = sessionIds.slice(offset, offset + concurrency);
+      const chunkResults = await Promise.all(
+        chunk.map(async (sessionId) => {
+          try {
+            const data = await sessionService.getSessionEvents(sessionId);
+            if (!data) {
+              analyticsComplete = false;
+              return [sessionId, null] as const;
+            }
+            return [sessionId, data] as const;
+          } catch (error) {
+            analyticsComplete = false;
+            console.error('Failed to fetch stitched session analytics', sessionId, error);
+            return [sessionId, null] as const;
+          }
+        }),
+      );
+      chunkResults.forEach(([sessionId, data]) => results.set(sessionId, data));
+    }
+
+    const shiftedIssues: any[] = [];
+    const sessionStats: Array<{
+      sessionId: string;
+      index: number;
+      clickCount: number;
+      misclickCount: number;
+      share: number;
+      targetStartTs: number;
+      sourceStartTs: number;
+      sourceEndTs: number;
+    }> = [];
+
+    let clickCount = 0;
+    let misclickCount = 0;
+
+    sessionIds.forEach((sessionId, index) => {
+      const segment = bySession.get(sessionId);
+      const data = results.get(sessionId);
+      const rawEvents = data?.events ?? [];
+      const rawIssues = data?.issues ?? [];
+
+      const sessionClicks = rawEvents
+        .filter((event: any) => event.type === 'CLICK' || event.type === 'CLICKRAGE')
+        .reduce(
+          (sum: number, event: any) =>
+            sum + Math.max(1, Number(event.count) || 1),
+          0,
+        );
+      const sessionMisclicks = rawIssues.filter(
+        (issue: any) => issue.type === 'dead_click',
+      ).length;
+
+      clickCount += sessionClicks;
+      misclickCount += sessionMisclicks;
+
+      if (segment) {
+        rawIssues
+          .filter((issue: any) => issue.type === 'dead_click')
+          .forEach((issue: any) => {
+            const rawTimestamp =
+              Number(issue.timestamp) ||
+              Number(issue.startedAt) ||
+              (Number.isFinite(Number(issue.time))
+                ? segment.sourceStartTs + Number(issue.time)
+                : segment.sourceStartTs);
+            const targetTimestamp = this.mapStitchedTimestamp(
+              rawTimestamp,
+              segment,
+            );
+            shiftedIssues.push({
+              ...issue,
+              timestamp: targetTimestamp,
+              startedAt: segment.targetStartTs,
+              sessionId,
+              sourceSessionId: sessionId,
+            });
+          });
+      }
+
+      sessionStats.push({
+        sessionId,
+        index,
+        clickCount: sessionClicks,
+        misclickCount: sessionMisclicks,
+        share: 0,
+        targetStartTs: segment?.targetStartTs ?? 0,
+        sourceStartTs: segment?.sourceStartTs ?? 0,
+        sourceEndTs: segment?.sourceEndTs ?? 0,
+      });
+    });
+
+    sessionStats.forEach((session) => {
+      session.share = clickCount > 0 ? session.clickCount / clickCount : 0;
+    });
+
+    return {
+      issues: shiftedIssues,
+      stats: {
+        sessionCount: sessionIds.length,
+        clickCount,
+        misclickCount,
+        analyticsComplete,
+        sessions: sessionStats,
+      },
+    };
+  };
+
   fetchStitchedSessionData = async (sessionIds: string[]) => {
     if (sessionIds.length === 0) {
       this.fetchFailed = true;
@@ -390,6 +531,11 @@ export default class SessionStore {
       const base = await sessionService.getSessionInfo(sessionIds[0], false);
       const stitched = await sessionService.prepareStitchedSession(sessionIds);
       blobURLs = stitched.blobURLs;
+
+      const analytics = await this.fetchStitchedAnalytics(
+        sessionIds,
+        stitched.manifest.segments,
+      );
 
       const data = {
         ...base,
@@ -409,11 +555,23 @@ export default class SessionStore {
         isStitched: true,
         stitchedSessionIds: [...sessionIds],
         stitchedSegments: stitched.manifest.segments,
+        stitchedStats: analytics.stats,
       };
+
+      const stitchedSession = new Session(data).addEvents(
+        [],
+        [],
+        [],
+        analytics.issues,
+        [],
+        [],
+        [],
+        [],
+      );
 
       runInAction(() => {
         this.stitchedBlobURLs = blobURLs;
-        this.current = new Session(data);
+        this.current = stitchedSession;
         this.prefetched = false;
       });
     } catch (e) {

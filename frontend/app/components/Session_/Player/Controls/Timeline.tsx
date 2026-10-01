@@ -67,13 +67,15 @@ function Timeline({ isMobile }: { isMobile: boolean }) {
     const time = Math.max(Math.round(p * endTime), 0);
     debouncedJump(time);
     hideTimeTooltip();
-    signalService.send(
-      {
-        source: 'jump',
-        value: time,
-      },
-      sessionId,
-    );
+    if (!sessionStore.current.isStitched) {
+      signalService.send(
+        {
+          source: 'jump',
+          value: time,
+        },
+        sessionId,
+      );
+    }
     if (playing) {
       setWasPlaying(true);
       player.pause();

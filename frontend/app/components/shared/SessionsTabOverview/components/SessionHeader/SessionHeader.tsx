@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button, Tooltip } from 'antd';
 import { useLocation } from 'App/routing';
+import { useTranslation } from 'react-i18next';
 import Period from 'Types/app/period';
 import SelectDateRange from 'Shared/SelectDateRange';
 import { useStore } from 'App/mstore';
@@ -9,6 +10,7 @@ import SessionSort from '../SessionSort';
 import SessionTags from '../SessionTags';
 
 function SessionHeader() {
+  const { t } = useTranslation();
   const { searchStore } = useStore();
   const location = useLocation();
   const { startDate, endDate, rangeValue, groupByUser } = searchStore.instance;
@@ -43,13 +45,17 @@ function SessionHeader() {
         <SessionTags />
         <div className={'flex items-center flex-row gap-1'}>
           {!isBookmarks ? (
-            <Tooltip title="Group sessions from the same user when the gap between them is at most 2 hours">
+            <Tooltip
+              title={t(
+                'Group sessions from the same user when the gap between them is at most 2 hours',
+              )}
+            >
               <Button
                 size="small"
                 type={groupByUser ? 'primary' : 'default'}
                 onClick={toggleNearbyGrouping}
               >
-                Group nearby · 2h
+                {t('Group nearby · 2h')}
               </Button>
             </Tooltip>
           ) : null}

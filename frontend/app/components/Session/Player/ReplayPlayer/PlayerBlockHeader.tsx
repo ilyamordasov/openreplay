@@ -83,7 +83,11 @@ function PlayerBlockHeader(props: any) {
     if (!sessionId || downloading) return;
     setDownloading(true);
     try {
-      await sessionService.downloadSession(String(sessionId));
+      if (session.isStitched && session.stitchedSessionIds?.length) {
+        await sessionService.downloadSessionGroup(session.stitchedSessionIds);
+      } else {
+        await sessionService.downloadSession(String(sessionId));
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : t('Failed to download session'),
@@ -145,7 +149,7 @@ function PlayerBlockHeader(props: any) {
                 disabled={downloading}
                 onClick={() => void downloadSession()}
               >
-                {t('Download Session')}
+                {session.isStitched ? t('Export sessions') : t('Download Session')}
               </Button>
             </div>
           )}

@@ -272,6 +272,9 @@ func groupingIdentity(session model.Session) string {
 	// Partition anonymous sessions by it before applying the time window so
 	// two different visitors can never merge merely because they overlap.
 	if session.UserUuid != "" {
+		if session.UserAnonymousId != nil && *session.UserAnonymousId != "" {
+			return "fingerprint:" + session.UserUuid + "|anonymous:" + *session.UserAnonymousId
+		}
 		return "fingerprint:" + session.UserUuid
 	}
 	if session.UserAnonymousId != nil && *session.UserAnonymousId != "" {

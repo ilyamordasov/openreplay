@@ -4,7 +4,8 @@ import SessionItem from 'Shared/SessionItem';
 import { NoContent, Loader, Pagination, Icon } from 'UI';
 import { Button } from 'antd';
 import { DownOutlined, RightOutlined } from '@ant-design/icons';
-import { useLocation, withRouter } from 'App/routing';
+import { useLocation, useNavigate, withRouter } from 'App/routing';
+import { session as sessionRoute, withSiteId } from 'App/routes';
 import AnimatedSVG, { ICONS } from 'Shared/AnimatedSVG/AnimatedSVG';
 import { numberWithCommas } from 'App/utils';
 import RecordingStatus from 'Shared/SessionsTabOverview/components/RecordingStatus';
@@ -38,6 +39,8 @@ function NearbySessionGroup({
   sessionItemProps: (session: any) => Record<string, any>;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { projectsStore } = useStore();
   const [expanded, setExpanded] = React.useState(true);
   const [exporting, setExporting] = React.useState(false);
   const sessions = group.sessions ?? [];
@@ -47,15 +50,40 @@ function NearbySessionGroup({
     0,
   );
   const totalMinutes = Math.max(1, Math.round(totalDurationMs / 60000));
+  const orderedSessions = React.useMemo(
+    () =>
+      [...sessions].sort(
+        (a: any, b: any) =>
+          (a.startedAt ?? a.startTs ?? 0) - (b.startedAt ?? b.startTs ?? 0),
+      ),
+    [sessions],
+  );
+  const orderedSessionIds = orderedSessions.map((session: any) =>
+    String(session.sessionId),
+  );
+  const canPlayMerged =
+    orderedSessions.length > 1 &&
+    orderedSessions.every(
+      (session: any) => !['ios', 'android'].includes(session.platform),
+    );
+
+  const playMerged = () => {
+    if (!canPlayMerged) return;
+    const firstSessionId = orderedSessionIds[0];
+    const target = withSiteId(
+      sessionRoute(firstSessionId),
+      projectsStore.siteId,
+    );
+    navigate(
+      `${target}?stitched=${encodeURIComponent(orderedSessionIds.join(','))}`,
+    );
+  };
 
   const exportGroup = async () => {
     if (exporting || sessions.length === 0) return;
     setExporting(true);
     try {
-      const sessionIds = [...sessions]
-        .sort((a: any, b: any) => a.startedAt - b.startedAt)
-        .map((session: any) => String(session.sessionId));
-      await sessionService.downloadSessionGroup(sessionIds);
+      await sessionService.downloadSessionGroup(orderedSessionIds);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : t('Failed to export sessions'),
@@ -85,6 +113,13 @@ function NearbySessionGroup({
             </div>
           </div>
         </button>
+        <Button
+          size="small"
+          disabled={!canPlayMerged}
+          onClick={playMerged}
+        >
+          {t('Play merged')}
+        </Button>
         <Button
           size="small"
           loading={exporting}

@@ -145,3 +145,29 @@ func TestHydrateSessionGroupsPreservesGroupingAndOrder(t *testing.T) {
 		t.Fatalf("second session order/hydration changed: %#v", got[0].Sessions[1])
 	}
 }
+
+
+func TestGroupNearbySessionsPartitionsAnonymousUsersByFingerprintBeforeTime(t *testing.T) {
+	sessions := []model.Session{
+		{SessionId: "101", UserUuid: "fp-a", StartTs: 1_000, Duration: 10_000},
+		{SessionId: "102", UserUuid: "fp-b", StartTs: 1_001, Duration: 10_000},
+	}
+
+	groups := groupNearbySessions(sessions, 120, "startTs", "asc")
+	if len(groups) != 2 {
+		t.Fatalf("expected different fingerprints to produce 2 groups even at the same time, got %d", len(groups))
+	}
+}
+
+func TestGroupNearbySessionsUsesFingerprintBeforeAnonymousIDFallback(t *testing.T) {
+	sharedAnonymousID := "anonymous"
+	sessions := []model.Session{
+		{SessionId: "101", UserUuid: "fp-a", UserAnonymousId: &sharedAnonymousID, StartTs: 1_000, Duration: 10_000},
+		{SessionId: "102", UserUuid: "fp-b", UserAnonymousId: &sharedAnonymousID, StartTs: 1_001, Duration: 10_000},
+	}
+
+	groups := groupNearbySessions(sessions, 120, "startTs", "asc")
+	if len(groups) != 2 {
+		t.Fatalf("expected fingerprint to prevent a shared anonymous label from merging users, got %d", len(groups))
+	}
+}

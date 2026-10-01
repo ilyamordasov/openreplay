@@ -1,4 +1,8 @@
 {
+  "Group nearby · 2h": "근접 세션 그룹화 · 2시간",
+  "Group sessions from the same user when the gap between them is at most 2 hours": "동일 사용자의 세션 간격이 2시간 이하인 경우 그룹화합니다",
+  "groups.": "그룹",
+  "min": "분",
   "15 minutes": "15분",
   "30 minutes": "30분",
   "1 hour": "1시간",

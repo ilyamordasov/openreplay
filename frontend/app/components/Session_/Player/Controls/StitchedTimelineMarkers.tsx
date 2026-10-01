@@ -38,6 +38,10 @@ function StitchedTimelineMarkers({ scale }: { scale: number }) {
         const sourceEnd = DateTime.fromMillis(segment.sourceEndTs)
           .setZone(zone)
           .toFormat('HH:mm:ss');
+        const labelStyle: React.CSSProperties =
+          index === session.stitchedSegments!.length - 1
+            ? { left: 'auto', right: '4px' }
+            : { top: index % 2 === 0 ? '-1px' : '-16px' };
 
         return (
           <Tooltip
@@ -64,7 +68,10 @@ function StitchedTimelineMarkers({ scale }: { scale: number }) {
               }}
               aria-label={`Session ${index + 1} starts at ${sourceStart}`}
             >
-              <span className={stl.stitchedSessionLabel}>
+              <span
+                className={stl.stitchedSessionLabel}
+                style={labelStyle}
+              >
                 {sourceStart}
               </span>
             </button>
@@ -75,12 +82,32 @@ function StitchedTimelineMarkers({ scale }: { scale: number }) {
       {clicks.map((click, index) => {
         const left = getTimelinePosition(click.time, scale);
         const label = click.label || click.selector || 'Click';
+        const targetTs = startedAt + click.time;
+        const segmentIndex = session.stitchedSegments!.findIndex(
+          (segment) =>
+            targetTs >= segment.targetStartTs &&
+            targetTs <= segment.targetEndTs,
+        );
+        const segment =
+          segmentIndex >= 0 ? session.stitchedSegments![segmentIndex] : undefined;
+        const sourceClickTs = segment
+          ? segment.sourceStartTs + (targetTs - segment.targetStartTs)
+          : undefined;
+        const sourceClickTime = sourceClickTs
+          ? DateTime.fromMillis(sourceClickTs).setZone(zone).toFormat('HH:mm:ss.SSS')
+          : undefined;
+
         return (
           <Tooltip
             key={`${click.time}-${click.tabId}-${index}`}
             title={
               <div className="text-xs">
                 <div>{label}</div>
+                {sourceClickTime ? (
+                  <div>
+                    Session {segmentIndex + 1}: {sourceClickTime}
+                  </div>
+                ) : null}
                 <div>Merged: {formatOffset(click.time)}</div>
               </div>
             }

@@ -210,6 +210,8 @@ export default class SessionStore {
 
   prefetched: boolean = false;
 
+  stitchedBlobURLs: string[] = [];
+
   fetchFailed: boolean = false;
 
   loadingLiveSessions: boolean = false;
@@ -361,6 +363,64 @@ export default class SessionStore {
     } catch (e) {
       console.error(e);
       return Promise.reject(e);
+    } finally {
+      runInAction(() => {
+        this.loadingSessions = false;
+      });
+    }
+  };
+
+  releaseStitchedBlobURLs = () => {
+    this.stitchedBlobURLs.forEach((url) => URL.revokeObjectURL(url));
+    this.stitchedBlobURLs = [];
+  };
+
+  fetchStitchedSessionData = async (sessionIds: string[]) => {
+    if (sessionIds.length === 0) {
+      this.fetchFailed = true;
+      return;
+    }
+
+    this.loadingSessions = true;
+    this.fetchFailed = false;
+    this.releaseStitchedBlobURLs();
+
+    let blobURLs: string[] = [];
+    try {
+      const base = await sessionService.getSessionInfo(sessionIds[0], false);
+      const stitched = await sessionService.prepareStitchedSession(sessionIds);
+      blobURLs = stitched.blobURLs;
+
+      const data = {
+        ...base,
+        sessionId: sessionIds[0],
+        sessionID: sessionIds[0],
+        startTs: stitched.manifest.startTs,
+        timestamp: stitched.manifest.startTs,
+        duration: stitched.manifest.durationMs,
+        domURL: stitched.domURL,
+        devtoolsURL: stitched.devtoolsURL,
+        fileKey: undefined,
+        live: false,
+        canvasURL: [],
+        canvasFrames: [],
+        videoURL: [],
+        audio: undefined,
+        isStitched: true,
+        stitchedSessionIds: [...sessionIds],
+      };
+
+      runInAction(() => {
+        this.stitchedBlobURLs = blobURLs;
+        this.current = new Session(data);
+        this.prefetched = false;
+      });
+    } catch (e) {
+      blobURLs.forEach((url) => URL.revokeObjectURL(url));
+      console.error(e);
+      runInAction(() => {
+        this.fetchFailed = true;
+      });
     } finally {
       runInAction(() => {
         this.loadingSessions = false;
@@ -640,6 +700,7 @@ export default class SessionStore {
   };
 
   clearCurrentSession = () => {
+    this.releaseStitchedBlobURLs();
     this.current = new Session();
     this.eventsIndex = [];
     this.visitedEvents = [];

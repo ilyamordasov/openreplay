@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,6 +77,7 @@ type testFiles struct {
 	err           error
 	afterWriteErr error
 	calls         int
+	stitchedIDs   []uint64
 }
 
 func (f *testFiles) GetMobsUrls(uint64) ([]string, error)             { return nil, nil }
@@ -102,7 +104,8 @@ func (f *testFiles) WriteSessionArchive(_ uint64, w io.Writer) error {
 	return f.afterWriteErr
 }
 
-func (f *testFiles) WriteStitchedSessionArchive(_ []uint64, w io.Writer) error {
+func (f *testFiles) WriteStitchedSessionArchive(sessionIDs []uint64, w io.Writer) error {
+	f.stitchedIDs = append([]uint64(nil), sessionIDs...)
 	return f.WriteSessionArchive(0, w)
 }
 
@@ -363,3 +366,100 @@ var _ logger.Logger = testLogger{}
 var _ serverapi.Responser = testResponser{}
 var _ session.Service = (*testSessions)(nil)
 var _ service.Files = (*testFiles)(nil)
+
+
+func applicationGroupDownloadRequest(projectID, body string) *http.Request {
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	return mux.SetURLVars(req, map[string]string{"project": projectID})
+}
+
+func TestSessionGroupDownloadValidatesAllSessionsAndStreamsOneArchive(t *testing.T) {
+	archive := makeHandlerTestZIP(t, "stitched")
+	sessions := &testSessions{exists: true}
+	files := &testFiles{archive: archive}
+	h := &handlersImpl{
+		log:       testLogger{},
+		responser: testResponser{},
+		sessions:  sessions,
+		files:     files,
+	}
+
+	rr := httptest.NewRecorder()
+	h.downloadSessionGroup(
+		rr,
+		applicationGroupDownloadRequest("42", `{"sessionIds":["101","102","103"]}`),
+	)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+	if got := rr.Header().Get("Content-Type"); got != "application/zip" {
+		t.Fatalf("Content-Type = %q", got)
+	}
+	if got := rr.Header().Get("Content-Disposition"); got != `attachment; filename="openreplay-stitched-101-3.zip"` {
+		t.Fatalf("Content-Disposition = %q", got)
+	}
+	if sessions.calls != 3 {
+		t.Fatalf("session validation calls = %d, want 3", sessions.calls)
+	}
+	want := []uint64{101, 102, 103}
+	if len(files.stitchedIDs) != len(want) {
+		t.Fatalf("stitched ids = %#v", files.stitchedIDs)
+	}
+	for i := range want {
+		if files.stitchedIDs[i] != want[i] {
+			t.Fatalf("stitched ids = %#v, want %#v", files.stitchedIDs, want)
+		}
+	}
+	if !bytes.Equal(rr.Body.Bytes(), archive) {
+		t.Fatal("handler did not stream stitched archive bytes")
+	}
+}
+
+func TestSessionGroupDownloadRejectsDuplicateSessionIDsBeforeExport(t *testing.T) {
+	sessions := &testSessions{exists: true}
+	files := &testFiles{}
+	h := &handlersImpl{
+		log:       testLogger{},
+		responser: testResponser{},
+		sessions:  sessions,
+		files:     files,
+	}
+
+	rr := httptest.NewRecorder()
+	h.downloadSessionGroup(
+		rr,
+		applicationGroupDownloadRequest("42", `{"sessionIds":["101","101"]}`),
+	)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+	if files.calls != 0 {
+		t.Fatalf("archive writer called %d times", files.calls)
+	}
+}
+
+func TestSessionGroupDownloadRejectsMissingSessionBeforeWritingArchive(t *testing.T) {
+	sessions := &testSessions{exists: false}
+	files := &testFiles{}
+	h := &handlersImpl{
+		log:       testLogger{},
+		responser: testResponser{},
+		sessions:  sessions,
+		files:     files,
+	}
+
+	rr := httptest.NewRecorder()
+	h.downloadSessionGroup(
+		rr,
+		applicationGroupDownloadRequest("42", `{"sessionIds":["101","102"]}`),
+	)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusNotFound)
+	}
+	if files.calls != 0 {
+		t.Fatalf("archive writer called %d times", files.calls)
+	}
+}

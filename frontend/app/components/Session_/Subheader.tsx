@@ -221,7 +221,14 @@ function SubHeader(props: any) {
         onVMode={onVMode}
       />
       <div className="w-full px-4 flex items-center border-b relative">
-        <SessionTabs />
+        {isStitched ? (
+          <div className="py-2 text-sm font-medium">
+            {t('Merged replay')} · {currentSession.stitchedSessionIds?.length ?? 0}{' '}
+            {t('sessions')}
+          </div>
+        ) : (
+          <SessionTabs />
+        )}
 
         {!hideTools && !isStitched && (
           <div

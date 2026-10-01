@@ -42,6 +42,7 @@ function WebPlayer(props: any) {
   } = useStore();
   const devTools = sessionStore.devTools;
   const session = sessionStore.current;
+  const isStitched = Boolean(session.isStitched);
   const { prefetched } = sessionStore;
   const startedAt = sessionStore.current.startedAt || 0;
   const duration = sessionStore.current.durationMs ?? 0;
@@ -84,20 +85,22 @@ function WebPlayer(props: any) {
 
     return () => {
       const durWatching = Date.now() - (openedAt.current || performance.now());
-      signalService.send(
-        {
-          source: 'duration',
-          value: durWatching,
-        },
-        session.sessionId,
-      );
+      if (!session.isStitched) {
+        signalService.send(
+          {
+            source: 'duration',
+            value: durWatching,
+          },
+          session.sessionId,
+        );
+      }
       devTools.update('network', { activeTab: 'ALL' });
       document.removeEventListener('visibilitychange', handleActivation);
     };
   }, []);
 
   useEffect(() => {
-    if (session.sessionId) {
+    if (session.sessionId && !isStitched) {
       sessionStore.setLastPlayedSessionId(session.sessionId);
     }
     playerInst = undefined;
@@ -122,24 +125,28 @@ function WebPlayer(props: any) {
     setContextValue({ player: WebPlayerInst, store: PlayerStore });
     playerInst = WebPlayerInst;
 
-    notesStore.fetchSessionNotes(session.sessionId).then((r) => {
-      const note = props.query.get('note');
-      if (note) {
-        setNoteItem(notesStore.getNoteById(parseInt(note, 10), r));
-        WebPlayerInst.pause();
-      }
-    });
+    if (!isStitched) {
+      notesStore.fetchSessionNotes(session.sessionId).then((r) => {
+        const note = props.query.get('note');
+        if (note) {
+          setNoteItem(notesStore.getNoteById(parseInt(note, 10), r));
+          WebPlayerInst.pause();
+        }
+      });
+    }
 
     const freeze = props.query.get('freeze');
     if (freeze) {
       void WebPlayerInst.freeze();
     }
-    signalService.send(
-      {
-        source: 'replay',
-      },
-      session.sessionId,
-    );
+    if (!isStitched) {
+      signalService.send(
+        {
+          source: 'replay',
+        },
+        session.sessionId,
+      );
+    }
   }, [session.sessionId]);
 
   const domFiles = session?.domURL?.length ?? 0;

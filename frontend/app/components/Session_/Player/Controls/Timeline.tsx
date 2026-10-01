@@ -17,6 +17,7 @@ import {
 import { MobEventsList, WebEventsList } from './EventsList';
 import NotesList from './NotesList';
 import SkipIntervalsList from './SkipIntervalsList';
+import StitchedTimelineMarkers from './StitchedTimelineMarkers';
 import CustomDragLayer, { OnDragCallback } from './components/CustomDragLayer';
 import TooltipContainer from './components/TooltipContainer';
 import stl from './timeline.module.css';
@@ -66,13 +67,15 @@ function Timeline({ isMobile }: { isMobile: boolean }) {
     const time = Math.max(Math.round(p * endTime), 0);
     debouncedJump(time);
     hideTimeTooltip();
-    signalService.send(
-      {
-        source: 'jump',
-        value: time,
-      },
-      sessionId,
-    );
+    if (!sessionStore.current.isStitched) {
+      signalService.send(
+        {
+          source: 'jump',
+          value: time,
+        },
+        sessionId,
+      );
+    }
     if (playing) {
       setWasPlaying(true);
       player.pause();
@@ -176,6 +179,7 @@ function Timeline({ isMobile }: { isMobile: boolean }) {
         </div>
 
         {isMobile ? <MobEventsList /> : <WebEventsList />}
+        <StitchedTimelineMarkers scale={scale} />
         <NotesList scale={scale} />
         <SkipIntervalsList scale={scale} />
 

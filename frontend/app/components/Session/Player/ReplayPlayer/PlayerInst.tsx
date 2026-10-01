@@ -73,7 +73,9 @@ function Player(props: IProps) {
   const isAttached = React.useRef(false);
 
   React.useEffect(() => {
-    updateLastPlayedSession(sessionId);
+    if (!sessionStore.current.isStitched) {
+      updateLastPlayedSession(sessionId);
+    }
     if (isReady && !isAttached.current) {
       const parentElement = screenWrapper.current; // TODO: good architecture
       if (parentElement) {

@@ -154,6 +154,36 @@ export interface ISession {
   audio?: string;
   assistOnly?: boolean;
   incidents?: Array<Incident>;
+  isStitched?: boolean;
+  stitchedSessionIds?: string[];
+  stitchedSegments?: Array<{
+    sessionId: string;
+    sourceStartTs: number;
+    sourceEndTs: number;
+    targetStartTs: number;
+    targetEndTs: number;
+    durationMs: number;
+  }>;
+  stitchedStats?: {
+    sessionCount: number;
+    eventCount: number;
+    clickCount: number;
+    misclickCount: number;
+    clickRageCount: number;
+    analyticsComplete: boolean;
+    sessions: Array<{
+      sessionId: string;
+      index: number;
+      eventCount: number;
+      clickCount: number;
+      misclickCount: number;
+      clickRageCount: number;
+      share: number;
+      targetStartTs: number;
+      sourceStartTs: number;
+      sourceEndTs: number;
+    }>;
+  };
 }
 
 const emptyValues = {
@@ -195,6 +225,14 @@ export default class Session {
   canvasFrames: ISession['canvasFrames'];
 
   live: ISession['live'];
+
+  isStitched?: ISession['isStitched'];
+
+  stitchedSessionIds?: ISession['stitchedSessionIds'];
+
+  stitchedSegments?: ISession['stitchedSegments'];
+
+  stitchedStats?: ISession['stitchedStats'];
 
   startedAt: ISession['startedAt'];
 

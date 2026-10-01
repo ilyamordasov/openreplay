@@ -1,6 +1,7 @@
 import APIClient, { clean as cleanParams } from 'App/api_client';
 import { ISession } from 'Types/session/session';
 import { IErrorStack } from 'Types/session/errorStack';
+import { unzipSync } from 'fflate';
 
 export default class SettingsService {
   private client: APIClient;
@@ -37,7 +38,17 @@ export default class SettingsService {
     return this.client.post(`/${projectId}/conditions`, data);
   }
 
-  getSessions(filter: any): Promise<{ sessions: ISession[]; total: number }> {
+  getSessions(filter: any): Promise<{
+    sessions: ISession[];
+    groups?: Array<{
+      groupId: string;
+      startTs: number;
+      endTs: number;
+      eventsCount: number;
+      sessions: ISession[];
+    }>;
+    total: number;
+  }> {
     return this.client
       .post('/sessions/search', filter)
       .then((r) => r.json())
@@ -70,6 +81,190 @@ export default class SettingsService {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
+  }
+
+  async downloadSessionGroup(sessionIds: string[]): Promise<void> {
+    if (sessionIds.length === 0) {
+      throw new Error('No sessions to export');
+    }
+    const response = await this.client.post('/sessions/download', {
+      sessionIds,
+    });
+    if (!response.ok) {
+      let message = 'Failed to export sessions';
+      try {
+        const payload = await response.json();
+        message =
+          payload?.errors?.[0] ||
+          payload?.error ||
+          payload?.message ||
+          message;
+      } catch {
+        // Keep the generic message when the API response is not JSON.
+      }
+      throw new Error(message);
+    }
+
+    const blob = await response.blob();
+    const contentDisposition = response.headers.get('Content-Disposition');
+    const filenameMatch = contentDisposition?.match(/filename="?([^";]+)"?/i);
+    const filename =
+      filenameMatch?.[1] ||
+      `openreplay-stitched-${sessionIds[0]}-${sessionIds.length}.zip`;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
+
+  async prepareStitchedSession(sessionIds: string[]): Promise<{
+    manifest: {
+      format: string;
+      version: number;
+      sessionId: string;
+      sourceSessionIds: string[];
+      files: string[];
+      startTs: number;
+      endTs: number;
+      durationMs: number;
+      gaps: string;
+      segments: Array<{
+        sessionId: string;
+        sourceStartTs: number;
+        sourceEndTs: number;
+        targetStartTs: number;
+        targetEndTs: number;
+        durationMs: number;
+      }>;
+    };
+    domURL: string[];
+    devtoolsURL: string[];
+    blobURLs: string[];
+  }> {
+    if (sessionIds.length === 0) {
+      throw new Error('No sessions to play');
+    }
+
+    const response = await this.client.post('/sessions/download', {
+      sessionIds,
+    });
+    if (!response.ok) {
+      let message = 'Failed to prepare merged session';
+      try {
+        const payload = await response.json();
+        message =
+          payload?.errors?.[0] ||
+          payload?.error ||
+          payload?.message ||
+          message;
+      } catch {
+        // Keep generic error for non-JSON API responses.
+      }
+      throw new Error(message);
+    }
+
+    const archive = unzipSync(new Uint8Array(await response.arrayBuffer()));
+    const manifestBytes = archive['manifest.json'];
+    const domBytes = archive['raw/dom.mobs'];
+    if (!manifestBytes || !domBytes) {
+      throw new Error('Merged session archive is incomplete');
+    }
+
+    const manifest = JSON.parse(
+      new TextDecoder().decode(manifestBytes),
+    ) as {
+      format: string;
+      version: number;
+      sessionId: string;
+      sourceSessionIds: string[];
+      files: string[];
+      startTs: number;
+      endTs: number;
+      durationMs: number;
+      gaps: string;
+      segments: Array<{
+        sessionId: string;
+        sourceStartTs: number;
+        sourceEndTs: number;
+        targetStartTs: number;
+        targetEndTs: number;
+        durationMs: number;
+      }>;
+    };
+    const sourceIdsMatch =
+      Array.isArray(manifest.sourceSessionIds) &&
+      manifest.sourceSessionIds.length === sessionIds.length &&
+      manifest.sourceSessionIds.every(
+        (sessionId, index) => sessionId === sessionIds[index],
+      );
+    const segmentsMatch =
+      Array.isArray(manifest.segments) &&
+      manifest.segments.length === sessionIds.length &&
+      manifest.segments.every((segment, index) => {
+        const sourceStart = Number(segment.sourceStartTs);
+        const sourceEnd = Number(segment.sourceEndTs);
+        const targetStart = Number(segment.targetStartTs);
+        const targetEnd = Number(segment.targetEndTs);
+        const duration = Number(segment.durationMs);
+        const previous = index > 0 ? manifest.segments[index - 1] : undefined;
+
+        return (
+          segment.sessionId === sessionIds[index] &&
+          Number.isFinite(sourceStart) &&
+          Number.isFinite(sourceEnd) &&
+          Number.isFinite(targetStart) &&
+          Number.isFinite(targetEnd) &&
+          Number.isFinite(duration) &&
+          sourceEnd >= sourceStart &&
+          targetEnd >= targetStart &&
+          duration === targetEnd - targetStart &&
+          (!previous || targetStart > Number(previous.targetEndTs))
+        );
+      });
+    const timelineMatches =
+      Number.isFinite(Number(manifest.startTs)) &&
+      Number.isFinite(Number(manifest.endTs)) &&
+      Number.isFinite(Number(manifest.durationMs)) &&
+      manifest.endTs >= manifest.startTs &&
+      manifest.durationMs === manifest.endTs - manifest.startTs &&
+      manifest.segments[0]?.targetStartTs === manifest.startTs &&
+      manifest.segments[manifest.segments.length - 1]?.targetEndTs ===
+        manifest.endTs;
+
+    if (
+      manifest.format !== 'openreplay-stitched-session-export' ||
+      manifest.version !== 1 ||
+      !sourceIdsMatch ||
+      !segmentsMatch ||
+      !timelineMatches
+    ) {
+      throw new Error('Merged session manifest is invalid');
+    }
+
+    const blobURLs: string[] = [];
+    const makeURL = (bytes: Uint8Array) => {
+      const url = URL.createObjectURL(
+        new Blob([bytes], { type: 'application/octet-stream' }),
+      );
+      blobURLs.push(url);
+      return url;
+    };
+
+    const domURL = [makeURL(domBytes)];
+    const devtoolsBytes = archive['raw/devtools.mob'];
+    const devtoolsURL = devtoolsBytes ? [makeURL(devtoolsBytes)] : [];
+
+    return {
+      manifest,
+      domURL,
+      devtoolsURL,
+      blobURLs,
+    };
   }
 
   getRecommendedSessions(sort?: any): Promise<{

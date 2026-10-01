@@ -171,21 +171,32 @@ type Session struct {
 }
 
 type SessionsSearchRequest struct {
-	Filters     []Filter `json:"filters" validate:"omitempty,dive"`
-	StartDate   int64    `json:"startTimestamp" validate:"required,min=946684800000"`
-	EndDate     int64    `json:"endTimestamp" validate:"required,min=946684800000,gtfield=StartDate"`
-	Sort        string   `json:"sort"`
-	Order       string   `json:"order" validate:"omitempty,oneof=asc desc"`
-	EventsOrder string   `json:"eventsOrder,omitempty" validate:"omitempty,oneof=then or and" default:"then"`
-	Limit       int      `json:"limit" validate:"required,min=1,max=200"`
-	Page        int      `json:"page" validate:"required,min=1"`
-	Series      []Series `json:"series" validate:"omitempty,max=5,dive"`
-	Bookmarked  bool     `json:"bookmarked"`
+	Filters            []Filter `json:"filters" validate:"omitempty,dive"`
+	StartDate          int64    `json:"startTimestamp" validate:"required,min=946684800000"`
+	EndDate            int64    `json:"endTimestamp" validate:"required,min=946684800000,gtfield=StartDate"`
+	Sort               string   `json:"sort"`
+	Order              string   `json:"order" validate:"omitempty,oneof=asc desc"`
+	EventsOrder        string   `json:"eventsOrder,omitempty" validate:"omitempty,oneof=then or and" default:"then"`
+	Limit              int      `json:"limit" validate:"required,min=1,max=200"`
+	Page               int      `json:"page" validate:"required,min=1"`
+	Series             []Series `json:"series" validate:"omitempty,max=5,dive"`
+	Bookmarked         bool     `json:"bookmarked"`
+	GroupByUser        bool     `json:"groupByUser,omitempty"`
+	GroupWindowMinutes int      `json:"groupWindowMinutes,omitempty" validate:"omitempty,min=1,max=1440"`
+}
+
+type SessionGroup struct {
+	GroupId     string    `json:"groupId"`
+	StartTs     uint64    `json:"startTs"`
+	EndTs       uint64    `json:"endTs"`
+	EventsCount uint64    `json:"eventsCount"`
+	Sessions    []Session `json:"sessions"`
 }
 
 type GetSessionsResponse struct {
-	Total    uint64    `json:"total" ch:"count"`
-	Sessions []Session `json:"sessions" ch:"sessions"`
+	Total    uint64         `json:"total" ch:"count"`
+	Sessions []Session      `json:"sessions" ch:"sessions"`
+	Groups   []SessionGroup `json:"groups,omitempty"`
 }
 
 type SessionIdData struct {
@@ -218,14 +229,16 @@ type SavedSearchRequest struct {
 }
 
 type SavedSearchData struct {
-	Filters     []Filter `json:"filters" validate:"required,dive"`
-	StartDate   int64    `json:"startTimestamp,omitempty" validate:"omitempty,min=946684800000"`
-	EndDate     int64    `json:"endTimestamp,omitempty" validate:"omitempty,min=946684800000"`
-	Sort        string   `json:"sort,omitempty"`
-	Order       string   `json:"order,omitempty"`
-	EventsOrder string   `json:"eventsOrder,omitempty" validate:"omitempty,oneof=then or and"`
-	Limit       int      `json:"limit,omitempty" validate:"omitempty,min=1,max=1000"`
-	Page        int      `json:"page,omitempty" validate:"omitempty,min=1"`
+	Filters            []Filter `json:"filters" validate:"required,dive"`
+	StartDate          int64    `json:"startTimestamp,omitempty" validate:"omitempty,min=946684800000"`
+	EndDate            int64    `json:"endTimestamp,omitempty" validate:"omitempty,min=946684800000"`
+	Sort               string   `json:"sort,omitempty"`
+	Order              string   `json:"order,omitempty"`
+	EventsOrder        string   `json:"eventsOrder,omitempty" validate:"omitempty,oneof=then or and"`
+	Limit              int      `json:"limit,omitempty" validate:"omitempty,min=1,max=1000"`
+	Page               int      `json:"page,omitempty" validate:"omitempty,min=1"`
+	GroupByUser        bool     `json:"groupByUser,omitempty"`
+	GroupWindowMinutes int      `json:"groupWindowMinutes,omitempty" validate:"omitempty,min=1,max=1440"`
 }
 
 type SavedSearch struct {

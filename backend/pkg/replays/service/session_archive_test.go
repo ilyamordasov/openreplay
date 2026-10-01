@@ -3,6 +3,7 @@ package service
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"sort"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"openreplay/backend/pkg/messages"
 	"openreplay/backend/pkg/objectstorage"
 )
 
@@ -142,5 +144,116 @@ func TestWriteSessionArchiveNotFound(t *testing.T) {
 	}
 	if output.Len() != 0 {
 		t.Fatalf("archive should not write bytes when no session objects exist")
+	}
+}
+
+
+func makeStitchTestReplay(msgs ...messages.Message) []byte {
+	data := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+	var index [8]byte
+	for i, msg := range msgs {
+		binary.LittleEndian.PutUint64(index[:], uint64(i+1))
+		data = append(data, index[:]...)
+		data = append(data, msg.Encode()...)
+	}
+	return data
+}
+
+func TestWriteStitchedSessionArchiveCompactsRealSessionPauses(t *testing.T) {
+	store := &fakeObjectStorage{objects: map[string][]byte{
+		"101/dom.mobs": makeStitchTestReplay(
+			&messages.Timestamp{Timestamp: 1_000},
+			&messages.SessionStart{Timestamp: 1_000, UserUUID: "fp-a"},
+			&messages.CreateDocument{},
+			&messages.Timestamp{Timestamp: 2_000},
+			&messages.SessionEnd{Timestamp: 2_000},
+		),
+		"102/dom.mobs": makeStitchTestReplay(
+			&messages.Timestamp{Timestamp: 10_000},
+			&messages.SessionStart{Timestamp: 10_000, UserUUID: "fp-a"},
+			&messages.CreateDocument{},
+			&messages.Timestamp{Timestamp: 10_500},
+			&messages.SessionEnd{Timestamp: 10_500},
+		),
+	}}
+	files := &filesImpl{objStore: store}
+
+	var output bytes.Buffer
+	if err := files.WriteStitchedSessionArchive([]uint64{101, 102}, &output); err != nil {
+		t.Fatalf("WriteStitchedSessionArchive() error = %v", err)
+	}
+
+	reader, err := zip.NewReader(bytes.NewReader(output.Bytes()), int64(output.Len()))
+	if err != nil {
+		t.Fatalf("zip.NewReader() error = %v", err)
+	}
+	archiveFiles := make(map[string][]byte, len(reader.File))
+	for _, file := range reader.File {
+		r, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(r)
+		_ = r.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		archiveFiles[file.Name] = data
+	}
+
+	if _, ok := archiveFiles["raw/dom.mobs"]; !ok {
+		t.Fatalf("stitched archive missing raw/dom.mobs")
+	}
+	if len(archiveFiles) != 2 {
+		t.Fatalf("archive files = %v, expected only manifest + one stitched replay stream", archiveFiles)
+	}
+
+	var manifest stitchedSessionArchiveManifest
+	if err := json.Unmarshal(archiveFiles["manifest.json"], &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Format != "openreplay-stitched-session-export" || manifest.Gaps != "compacted" {
+		t.Fatalf("unexpected stitched manifest: %#v", manifest)
+	}
+	if len(manifest.SourceSessionIDs) != 2 || manifest.SourceSessionIDs[0] != "101" || manifest.SourceSessionIDs[1] != "102" {
+		t.Fatalf("source session ids = %#v", manifest.SourceSessionIDs)
+	}
+	if manifest.StartTs != 1_000 || manifest.EndTs != 2_501 || manifest.DurationMs != 1_501 {
+		t.Fatalf("stitched timeline = start:%d end:%d duration:%d", manifest.StartTs, manifest.EndTs, manifest.DurationMs)
+	}
+	if len(manifest.Segments) != 2 {
+		t.Fatalf("segments = %#v, want 2", manifest.Segments)
+	}
+	if manifest.Segments[0].SessionID != "101" ||
+		manifest.Segments[0].SourceStartTs != 1_000 ||
+		manifest.Segments[0].TargetStartTs != 1_000 ||
+		manifest.Segments[0].TargetEndTs != 2_000 {
+		t.Fatalf("first segment = %#v", manifest.Segments[0])
+	}
+	if manifest.Segments[1].SessionID != "102" ||
+		manifest.Segments[1].SourceStartTs != 10_000 ||
+		manifest.Segments[1].TargetStartTs != 2_001 ||
+		manifest.Segments[1].TargetEndTs != 2_501 {
+		t.Fatalf("second segment = %#v", manifest.Segments[1])
+	}
+
+	decoded, err := messages.DecodeReplayStream(archiveFiles["raw/dom.mobs"])
+	if err != nil {
+		t.Fatalf("decode stitched DOM: %v", err)
+	}
+	var timestamps []uint64
+	for _, msg := range decoded {
+		if ts, ok := msg.(*messages.Timestamp); ok {
+			timestamps = append(timestamps, ts.Timestamp)
+		}
+	}
+	want := []uint64{1_000, 2_000, 2_001, 2_501}
+	if len(timestamps) != len(want) {
+		t.Fatalf("timestamps = %#v", timestamps)
+	}
+	for i := range want {
+		if timestamps[i] != want[i] {
+			t.Fatalf("timestamps = %#v, want %#v", timestamps, want)
+		}
 	}
 }

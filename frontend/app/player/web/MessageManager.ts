@@ -48,6 +48,12 @@ type TabChangeEvent = {
 export interface State extends ScreenState {
   skipIntervals: SkipInterval[];
   eventCount: number;
+  clicks: Array<{
+    time: number;
+    tabId: string;
+    label?: string;
+    selector?: string;
+  }>;
   location?: string;
   tabStates: {
     [tabId: string]: TabState;
@@ -102,6 +108,7 @@ export default class MessageManager {
     ...SCREEN_INITIAL_STATE,
     tabStates: {},
     eventCount: 0,
+    clicks: [],
     skipIntervals: [],
     error: false,
     ready: false,
@@ -120,6 +127,12 @@ export default class MessageManager {
   };
 
   private clickManager: ListWalker<MouseClick> = new ListWalker();
+  private clickTimelineMarkers: Array<{
+    time: number;
+    tabId: string;
+    label?: string;
+    selector?: string;
+  }> = [];
   private mouseThrashingManager: ListWalker<MouseThrashing> = new ListWalker();
   private activityManager: ActivityManager | null = null;
   private mouseMoveManager: MouseMoveManager;
@@ -252,7 +265,10 @@ export default class MessageManager {
   public onFileReadFinally = () => {
     this.waitingForFiles = false;
     this.setMessagesLoading(false);
-    this.state.update({ messagesProcessed: true });
+    this.state.update({
+      messagesProcessed: true,
+      clicks: this.clickTimelineMarkers.slice(),
+    });
   };
 
   /**
@@ -289,6 +305,8 @@ export default class MessageManager {
 
   resetMessageManagers() {
     this.clickManager = new ListWalker();
+    this.clickTimelineMarkers = [];
+    this.state.update({ clicks: [] });
     this.mouseMoveManager = new MouseMoveManager(this.screen);
     this.activityManager = new ActivityManager(this.session.durationMs);
     this.activeTabManager = new ActiveTabManager();
@@ -488,6 +506,12 @@ export default class MessageManager {
       case MType.MouseClickDeprecated:
       case MType.MouseClick:
         this.clickManager.append(msg);
+        this.clickTimelineMarkers.push({
+          time: msg.time,
+          tabId: msg.tabId,
+          label: msg.label,
+          selector: msg.selector,
+        });
         break;
       default:
         switch (msg.tp) {

@@ -38,6 +38,8 @@ interface ISearch {
   eventsCount?: number;
   consoleLevel?: string;
   eventsOrder: string;
+  groupByUser?: boolean;
+  groupWindowMinutes?: number;
 }
 
 export default class Search {
@@ -62,6 +64,8 @@ export default class Search {
   eventsCount?: number;
   consoleLevel?: string;
   eventsOrder: string;
+  groupByUser: boolean;
+  groupWindowMinutes: number;
   limit: number;
 
   constructor(initialData?: Partial<ISearch>) {
@@ -89,6 +93,8 @@ export default class Search {
       consoleLogCount: undefined,
       consoleLevel: undefined,
       eventsOrder: 'then',
+      groupByUser: false,
+      groupWindowMinutes: 120,
       limit: 10,
       ...initialData,
     });

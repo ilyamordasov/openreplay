@@ -106,6 +106,10 @@ func (f *fakeFiles) WriteSessionArchive(_ uint64, w io.Writer) error {
 	return f.afterWriteErr
 }
 
+func (f *fakeFiles) WriteStitchedSessionArchive(_ []uint64, w io.Writer) error {
+	return f.WriteSessionArchive(0, w)
+}
+
 type publicTestLogger struct{}
 
 func (publicTestLogger) Debug(context.Context, string, ...interface{}) {}

@@ -154,6 +154,8 @@ export interface ISession {
   audio?: string;
   assistOnly?: boolean;
   incidents?: Array<Incident>;
+  isStitched?: boolean;
+  stitchedSessionIds?: string[];
 }
 
 const emptyValues = {
@@ -195,6 +197,10 @@ export default class Session {
   canvasFrames: ISession['canvasFrames'];
 
   live: ISession['live'];
+
+  isStitched?: ISession['isStitched'];
+
+  stitchedSessionIds?: ISession['stitchedSessionIds'];
 
   startedAt: ISession['startedAt'];
 

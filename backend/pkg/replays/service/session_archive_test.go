@@ -159,7 +159,7 @@ func makeStitchTestReplay(msgs ...messages.Message) []byte {
 	return data
 }
 
-func TestWriteStitchedSessionArchiveCreatesOneCompactedReplay(t *testing.T) {
+func TestWriteStitchedSessionArchivePreservesRealSessionPauses(t *testing.T) {
 	store := &fakeObjectStorage{objects: map[string][]byte{
 		"101/dom.mobs": makeStitchTestReplay(
 			&messages.Timestamp{Timestamp: 1_000},

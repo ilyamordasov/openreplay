@@ -532,11 +532,6 @@ export default class SessionStore {
       const stitched = await sessionService.prepareStitchedSession(sessionIds);
       blobURLs = stitched.blobURLs;
 
-      const analytics = await this.fetchStitchedAnalytics(
-        sessionIds,
-        stitched.manifest.segments,
-      );
-
       const data = {
         ...base,
         sessionId: sessionIds[0],
@@ -555,24 +550,47 @@ export default class SessionStore {
         isStitched: true,
         stitchedSessionIds: [...sessionIds],
         stitchedSegments: stitched.manifest.segments,
-        stitchedStats: analytics.stats,
+        stitchedStats: undefined,
       };
 
-      const stitchedSession = new Session(data).addEvents(
-        [],
-        [],
-        [],
-        analytics.issues,
-        [],
-        [],
-        [],
-        [],
-      );
-
+      const stitchedSession = new Session(data);
       runInAction(() => {
         this.stitchedBlobURLs = blobURLs;
         this.current = stitchedSession;
         this.prefetched = false;
+      });
+
+      // Do not block replay startup on secondary analytics. The stitched
+      // binary is already complete and playable at this point.
+      void this.fetchStitchedAnalytics(
+        sessionIds,
+        stitched.manifest.segments,
+      ).then((analytics) => {
+        const stillCurrent =
+          this.current.isStitched &&
+          this.current.stitchedSessionIds?.length === sessionIds.length &&
+          this.current.stitchedSessionIds.every(
+            (sessionId, index) => sessionId === sessionIds[index],
+          );
+        if (!stillCurrent) return;
+
+        const enrichedSession = new Session({
+          ...data,
+          stitchedStats: analytics.stats,
+        }).addEvents(
+          [],
+          [],
+          [],
+          analytics.issues,
+          [],
+          [],
+          [],
+          [],
+        );
+
+        runInAction(() => {
+          this.current = enrichedSession;
+        });
       });
     } catch (e) {
       blobURLs.forEach((url) => URL.revokeObjectURL(url));
